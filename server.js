@@ -3,25 +3,35 @@
 const http = require('http');
 const WebSocket = require('ws');
 
-// Your upstream Eagler Host WSS:
 const UPSTREAM_URL = 'wss://PromiseLand-CKMC.eagler.host/';
 
-// Some upstreams are picky about Origin.
-// This tries client Origin first; if none, uses a common safe fallback.
-const ORIGIN_FALLBACK = 'https://eaglercraft.com';
+// Spoof headers that some Eagler hosts/CDNs require
+const SPOOF_ORIGIN = 'https://eaglercraft.com';
+const SPOOF_HOST = 'PromiseLand-CKMC.eagler.host';
+const SPOOF_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36';
 
-// Keepalive ping interval (ms)
-const PING_INTERVAL = 20_000;
+// Keepalive (helps prevent Render / middleboxes dropping idle WS)
+const PING_INTERVAL_MS = 15000;
 
-function pickFirstHeader(req, name) {
+// If upstream doesn’t open quickly, kill the attempt
+const UPSTREAM_OPEN_TIMEOUT_MS = 8000;
+
+// If no traffic for too long, kill both sides (optional)
+const IDLE_TIMEOUT_MS = 120000;
+
+function log(...args) {
+  console.log(new Date().toISOString(), ...args);
+}
+
+function getHeader(req, name) {
   const v = req.headers[name.toLowerCase()];
   if (!v) return '';
   return Array.isArray(v) ? v[0] : v;
 }
 
 const server = http.createServer((req, res) => {
-  // Simple health endpoint
-  if (req.url === '/health' || req.url === '/' ) {
+  if (req.url === '/' || req.url === '/health') {
     res.writeHead(200, { 'content-type': 'text/plain' });
     res.end('ok\n');
     return;
@@ -32,89 +42,76 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocket.Server({
   server,
-  // Eagler + some proxies behave better without compression
-  perMessageDeflate: false,
+  perMessageDeflate: false, // important for some WS clients
+  // maxPayload: 0, // (0 = default). You can set e.g. 50 * 1024 * 1024 if needed
 });
 
 wss.on('connection', (client, req) => {
-  // Buffer messages from client until upstream is fully open
-  const queue = [];
-  let closed = false;
+  const clientIP =
+    getHeader(req, 'cf-connecting-ip') ||
+    getHeader(req, 'x-forwarded-for') ||
+    req.socket?.remoteAddress ||
+    'unknown';
 
-  // Pull headers we may want to reuse
-  const clientOrigin = pickFirstHeader(req, 'origin');
-  const clientUA = pickFirstHeader(req, 'user-agent');
-  const clientProtocolsRaw = pickFirstHeader(req, 'sec-websocket-protocol');
-
-  // Parse subprotocol list
+  const clientOrigin = getHeader(req, 'origin');
+  const clientProtocolsRaw = getHeader(req, 'sec-websocket-protocol');
   const clientProtocols = clientProtocolsRaw
     ? clientProtocolsRaw.split(',').map(s => s.trim()).filter(Boolean)
-    : undefined;
+    : [];
 
-  // Build upstream WS options
-  const upstreamOpts = {
+  log('[IN ] client connected', { ip: clientIP, origin: clientOrigin, protocols: clientProtocols });
+
+  // Buffer client messages until upstream is open
+  const queue = [];
+  let closed = false;
+  let lastActivity = Date.now();
+
+  const upstream = new WebSocket(UPSTREAM_URL, {
     perMessageDeflate: false,
-    // Forward subprotocols if present
-    protocol: clientProtocols && clientProtocols.length ? clientProtocols : undefined,
+    // Forward subprotocols if present (some servers care)
+    protocol: clientProtocols.length ? clientProtocols : undefined,
     headers: {
-      // Use the client's Origin if available; otherwise fallback
-      Origin: clientOrigin || ORIGIN_FALLBACK,
-      // Forward UA when available
-      'User-Agent': clientUA || 'Mozilla/5.0',
-      // Sometimes helps certain hosts / CDNs
+      // Use spoofed values that tend to pass checks
+      Origin: SPOOF_ORIGIN,
+      Host: SPOOF_HOST,
+      'User-Agent': SPOOF_UA,
+
+      // Still pass original origin in a secondary header (harmless, sometimes useful)
+      'X-Forwarded-Origin': clientOrigin || '',
       'Cache-Control': 'no-cache',
       Pragma: 'no-cache',
     },
-  };
+  });
 
-  const upstream = new WebSocket(UPSTREAM_URL, upstreamOpts);
+  function touch() {
+    lastActivity = Date.now();
+  }
 
-  function safeCloseBoth(code, reason) {
+  function safeClose(code = 1000, reason = 'closed') {
     if (closed) return;
     closed = true;
+    log('[CLS] closing both', { code, reason, ip: clientIP });
     try { client.close(code, reason); } catch {}
     try { upstream.close(code, reason); } catch {}
   }
 
-  function flushQueue() {
-    while (queue.length && upstream.readyState === WebSocket.OPEN) {
-      const msg = queue.shift();
-      upstream.send(msg);
+  // Kill if upstream never opens
+  const openTimer = setTimeout(() => {
+    if (upstream.readyState !== WebSocket.OPEN) {
+      log('[UP ] open timeout (upstream never opened)', { ip: clientIP });
+      safeClose(1013, 'upstream open timeout');
     }
-  }
+  }, UPSTREAM_OPEN_TIMEOUT_MS);
 
-  // Client -> Upstream (queue until upstream open)
-  client.on('message', (data, isBinary) => {
-    if (upstream.readyState === WebSocket.OPEN) {
-      upstream.send(data, { binary: isBinary });
-    } else if (upstream.readyState === WebSocket.CONNECTING) {
-      queue.push(data);
-    } else {
-      // Upstream died before open
-      safeCloseBoth(1011, 'Upstream not available');
+  // Idle timeout watchdog
+  const idleTimer = setInterval(() => {
+    if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
+      log('[IDLE] idle timeout', { ip: clientIP });
+      safeClose(1001, 'idle timeout');
     }
-  });
+  }, 10000);
 
-  // Upstream -> Client
-  upstream.on('message', (data, isBinary) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(data, { binary: isBinary });
-    }
-  });
-
-  // When upstream opens: flush queued handshake packets
-  upstream.on('open', () => {
-    flushQueue();
-  });
-
-  // Error/close handling
-  client.on('error', () => safeCloseBoth(1011, 'Client error'));
-  upstream.on('error', () => safeCloseBoth(1011, 'Upstream error'));
-
-  client.on('close', () => safeCloseBoth(1000, 'Client closed'));
-  upstream.on('close', () => safeCloseBoth(1000, 'Upstream closed'));
-
-  // Keepalive pings (helps Render/CDNs not drop idle websockets)
+  // Keepalive pings
   const pingTimer = setInterval(() => {
     if (client.readyState === WebSocket.OPEN) {
       try { client.ping(); } catch {}
@@ -122,15 +119,85 @@ wss.on('connection', (client, req) => {
     if (upstream.readyState === WebSocket.OPEN) {
       try { upstream.ping(); } catch {}
     }
-    if (client.readyState !== WebSocket.OPEN && upstream.readyState !== WebSocket.OPEN) {
-      clearInterval(pingTimer);
-    }
-  }, PING_INTERVAL);
+  }, PING_INTERVAL_MS);
 
-  // Cleanup timer when either closes
-  const cleanupTimer = () => clearInterval(pingTimer);
-  client.on('close', cleanupTimer);
-  upstream.on('close', cleanupTimer);
+  function cleanupTimers() {
+    clearTimeout(openTimer);
+    clearInterval(idleTimer);
+    clearInterval(pingTimer);
+  }
+
+  // Client -> Upstream
+  client.on('message', (data, isBinary) => {
+    touch();
+
+    // Queue until upstream open so first handshake packet is not lost
+    if (upstream.readyState === WebSocket.OPEN) {
+      upstream.send(data, { binary: isBinary }, (err) => {
+        if (err) log('[ERR] send to upstream failed', err?.message || err);
+      });
+    } else if (upstream.readyState === WebSocket.CONNECTING) {
+      queue.push({ data, isBinary });
+      // Avoid unbounded memory if someone spams before open
+      if (queue.length > 5000) {
+        log('[WARN] queue too large, dropping connection', { ip: clientIP });
+        safeClose(1009, 'queue overflow');
+      }
+    } else {
+      safeClose(1011, 'upstream not available');
+    }
+  });
+
+  // Upstream -> Client
+  upstream.on('message', (data, isBinary) => {
+    touch();
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data, { binary: isBinary }, (err) => {
+        if (err) log('[ERR] send to client failed', err?.message || err);
+      });
+    }
+  });
+
+  upstream.on('open', () => {
+    clearTimeout(openTimer);
+    log('[UP ] upstream open', { ip: clientIP });
+
+    // Flush queued early packets (handshake)
+    while (queue.length && upstream.readyState === WebSocket.OPEN) {
+      const { data, isBinary } = queue.shift();
+      upstream.send(data, { binary: isBinary });
+    }
+  });
+
+  upstream.on('close', (code, reason) => {
+    log('[UP ] upstream close', { code, reason: reason?.toString?.() || '', ip: clientIP });
+    cleanupTimers();
+    safeClose(code || 1000, 'upstream closed');
+  });
+
+  client.on('close', (code, reason) => {
+    log('[IN ] client close', { code, reason: reason?.toString?.() || '', ip: clientIP });
+    cleanupTimers();
+    safeClose(code || 1000, 'client closed');
+  });
+
+  upstream.on('error', (err) => {
+    log('[UP ] upstream error', err?.message || err, { ip: clientIP });
+    cleanupTimers();
+    safeClose(1011, 'upstream error');
+  });
+
+  client.on('error', (err) => {
+    log('[IN ] client error', err?.message || err, { ip: clientIP });
+    cleanupTimers();
+    safeClose(1011, 'client error');
+  });
+
+  // Respond to ping/pong to keep timers fresh
+  client.on('pong', touch);
+  upstream.on('pong', touch);
 });
 
-server.listen(process.env.PORT || 10000, '0.0.0.0');
+server.listen(process.env.PORT || 10000, '0.0.0.0', () => {
+  log(`listening on ${process.env.PORT || 10000}`);
+});
