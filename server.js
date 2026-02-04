@@ -1,24 +1,39 @@
 const WebSocket = require("ws");
+const http = require("http");
 
 const upstream = "wss://PromiseLand-CKMC.eagler.host/";
 
-const server = new WebSocket.Server({ port: process.env.PORT || 10000 });
+const server = http.createServer();
 
-server.on("connection", (client) => {
-    const target = new WebSocket(upstream);
+const wss = new WebSocket.Server({ server });
 
-    client.on("message", (msg) => {
-        if (target.readyState === WebSocket.OPEN) {
-            target.send(msg);
+wss.on("connection", (client, req) => {
+
+    const target = new WebSocket(upstream, {
+        headers: {
+            "Origin": req.headers.origin || "",
+            "User-Agent": req.headers["user-agent"] || ""
         }
     });
 
-    target.on("message", (msg) => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(msg);
-        }
+    target.on("open", () => {
+
+        client.on("message", (msg) => {
+            if (target.readyState === WebSocket.OPEN) {
+                target.send(msg);
+            }
+        });
+
+        target.on("message", (msg) => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(msg);
+            }
+        });
+
     });
 
     client.on("close", () => target.close());
     target.on("close", () => client.close());
 });
+
+server.listen(process.env.PORT || 10000);
