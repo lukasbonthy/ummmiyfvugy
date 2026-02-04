@@ -1,7 +1,13 @@
 {
-  "name": "wss-proxy",
+  "name": "eagler-wss-proxy",
   "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
-    "ws": "^8.13.0"
+    "ws": "^8.16.0"
   }
 }
