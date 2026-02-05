@@ -1,29 +1,51 @@
 'use strict';
 
+/**
+ * Eaglercraft WSS reverse proxy + static site host (Render-ready)
+ *
+ * Fixes based on real-world WS proxy failures:
+ * - PRESERVES frame type (binary vs text) both directions (critical)
+ * - NO forced "binary:true" (breaks some protocol/control frames)
+ * - NO fancy fragmentation options (can backfire)
+ * - Backpressure pause/resume using bufferedAmount (prevents chunk-load stalls)
+ * - Queue early client packets until upstream OPEN (prevents handshake/data loss)
+ * - TCP_NODELAY + keepalive on both sockets (reduces jitter)
+ * - Ping both sides (helps middleboxes / Render)
+ * - Forwards client IP header for servers that rate-limit by IP (optional but helpful)
+ *
+ * Put your website files in ./public (index.html etc)
+ * Render: Start command "node server.js"
+ */
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const WebSocket = require('ws');
 
+const PORT = process.env.PORT || 10000;
+
+// Your real Eagler host:
 const UPSTREAM_URL = 'wss://PromiseLand-CKMC.eagler.host/';
 
-// These are sometimes required by Eagler hosts
+// Some Eagler hosts/CDNs are picky
 const SPOOF_ORIGIN = 'https://eaglercraft.com';
 const SPOOF_HOST = 'PromiseLand-CKMC.eagler.host';
 const SPOOF_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36';
 
-// Static site folder
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-// Timeouts / limits
-const UPSTREAM_OPEN_TIMEOUT_MS = 12000;
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 min - only triggers if truly idle
+// --- Timers / Limits ---
+const UPSTREAM_OPEN_TIMEOUT_MS = 15000;
+const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // only if truly idle
 const PING_INTERVAL_MS = 15000;
 
-// Backpressure controls (this is what helps when chunks load)
-const MAX_BUFFERED_AMOUNT = 8 * 1024 * 1024; // 8MB
-const RESUME_BUFFERED_AMOUNT = 2 * 1024 * 1024; // 2MB
+// Queue while upstream connects
+const MAX_QUEUE_BYTES = 32 * 1024 * 1024; // 32MB
+
+// Backpressure thresholds (chunk loads spike traffic)
+const PAUSE_AT = 8 * 1024 * 1024;   // 8MB
+const RESUME_AT = 2 * 1024 * 1024;  // 2MB
 
 function log(...args) {
   console.log(new Date().toISOString(), ...args);
@@ -73,9 +95,11 @@ function serveFile(res, filePath) {
   });
 }
 
+// --- HTTP server for your site + WS upgrade ---
 const server = http.createServer((req, res) => {
   const urlPathRaw = (req.url || '').split('?')[0];
 
+  // health
   if (urlPathRaw === '/health') {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('ok\n');
@@ -84,7 +108,7 @@ const server = http.createServer((req, res) => {
 
   let urlPath;
   try {
-    urlPath = decodeURIComponent(urlPathRaw);
+    urlPath = decodeURIComponent(urlPathRaw || '/');
   } catch {
     res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('Bad Request');
@@ -93,7 +117,7 @@ const server = http.createServer((req, res) => {
 
   if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
 
-  // Prevent path traversal
+  // Prevent traversal
   const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, '');
   const filePath = path.join(PUBLIC_DIR, safePath);
 
@@ -103,26 +127,20 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  fs.stat(filePath, (err, stat) => {
-    if (!err && stat.isFile()) {
-      serveFile(res, filePath);
-      return;
-    }
+  fs.stat(filePath, (err, st) => {
+    if (!err && st.isFile()) return serveFile(res, filePath);
 
-    // SPA fallback (optional)
+    // SPA fallback
     const fallback = path.join(PUBLIC_DIR, 'index.html');
     fs.stat(fallback, (e2, st2) => {
-      if (!e2 && st2.isFile()) {
-        serveFile(res, fallback);
-      } else {
-        res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
-        res.end('Not Found');
-      }
+      if (!e2 && st2.isFile()) return serveFile(res, fallback);
+      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end('Not Found');
     });
   });
 });
 
-// Socket tuning
+// TCP tuning for HTTP sockets
 server.on('connection', (sock) => {
   try {
     sock.setNoDelay(true);
@@ -130,11 +148,11 @@ server.on('connection', (sock) => {
   } catch {}
 });
 
-// WebSocket server
+// WebSocket server (attach to same HTTP server)
 const wss = new WebSocket.Server({
   server,
-  perMessageDeflate: false,
-  // Keep default fragmentation behavior (don’t get fancy)
+  perMessageDeflate: false, // avoid compression weirdness
+  maxPayload: 0,            // allow big packets (ws default is large anyway)
 });
 
 wss.on('connection', (client, req) => {
@@ -152,49 +170,73 @@ wss.on('connection', (client, req) => {
 
   log('[IN ] client connected', { ip: clientIP, origin: clientOrigin, protocols: clientProtocols });
 
+  // Client TCP tuning
+  try {
+    client._socket?.setNoDelay(true);
+    client._socket?.setKeepAlive(true, 15000);
+  } catch {}
+
   let closed = false;
   let lastActivity = Date.now();
 
-  try {
-    client._socket.setNoDelay(true);
-    client._socket.setKeepAlive(true, 15000);
-  } catch {}
+  // Queue messages until upstream is OPEN
+  const queue = [];
+  let queueBytes = 0;
 
+  // Backpressure pause flags
+  let pauseClientReads = false;
+  let pauseUpstreamReads = false;
+
+  // Upstream WS
   const upstream = new WebSocket(UPSTREAM_URL, {
     perMessageDeflate: false,
     handshakeTimeout: UPSTREAM_OPEN_TIMEOUT_MS,
     protocol: clientProtocols.length ? clientProtocols : undefined,
     headers: {
+      // Spoof values that often pass checks
       Origin: SPOOF_ORIGIN,
       Host: SPOOF_HOST,
       'User-Agent': SPOOF_UA,
+
+      // Pass-through helpful metadata
       'X-Forwarded-Origin': clientOrigin || '',
+      'X-Real-IP': clientIP,
       'Cache-Control': 'no-cache',
       Pragma: 'no-cache',
     },
-  });
-
-  upstream.on('open', () => {
-    try {
-      upstream._socket.setNoDelay(true);
-      upstream._socket.setKeepAlive(true, 15000);
-    } catch {}
-    log('[UP ] upstream open', { ip: clientIP });
   });
 
   function touch() {
     lastActivity = Date.now();
   }
 
+  function cleanupTimers() {
+    clearInterval(idleTimer);
+    clearInterval(pingTimer);
+    clearInterval(bpTimer);
+    clearTimeout(openTimer);
+  }
+
   function safeClose(code = 1000, reason = 'closed') {
     if (closed) return;
     closed = true;
-    log('[CLS] closing both', { code, reason, ip: clientIP });
+    log('[CLS] closing both', { ip: clientIP, code, reason });
+    cleanupTimers();
     try { client.close(code, reason); } catch {}
     try { upstream.close(code, reason); } catch {}
+    try { client.terminate(); } catch {}
+    try { upstream.terminate(); } catch {}
   }
 
-  // Idle watchdog (only closes if literally no traffic)
+  // If upstream never opens
+  const openTimer = setTimeout(() => {
+    if (upstream.readyState !== WebSocket.OPEN) {
+      log('[UP ] open timeout', { ip: clientIP });
+      safeClose(1013, 'upstream open timeout');
+    }
+  }, UPSTREAM_OPEN_TIMEOUT_MS);
+
+  // Idle watchdog (only if truly idle)
   const idleTimer = setInterval(() => {
     if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
       log('[IDLE] idle timeout', { ip: clientIP });
@@ -202,7 +244,7 @@ wss.on('connection', (client, req) => {
     }
   }, 10000);
 
-  // Keepalive ping (both directions is fine; browsers auto-pong)
+  // Keepalive pings (helps middleboxes / Render)
   const pingTimer = setInterval(() => {
     if (client.readyState === WebSocket.OPEN) {
       try { client.ping(); } catch {}
@@ -212,90 +254,115 @@ wss.on('connection', (client, req) => {
     }
   }, PING_INTERVAL_MS);
 
-  function cleanup() {
-    clearInterval(idleTimer);
-    clearInterval(pingTimer);
-  }
-
-  // Backpressure helpers
-  let clientPaused = false;
-  function maybeApplyBackpressure() {
+  // Backpressure: pause the reader when the writer is congested
+  function applyBackpressure() {
     if (client.readyState !== WebSocket.OPEN || upstream.readyState !== WebSocket.OPEN) return;
 
-    // If either side is buffering too much, pause reading from the other side.
-    const upBuf = upstream.bufferedAmount || 0;
-    const clBuf = client.bufferedAmount || 0;
+    const upBuf = upstream.bufferedAmount || 0; // bytes waiting to write to upstream
+    const clBuf = client.bufferedAmount || 0;   // bytes waiting to write to client
 
-    // Pause client reads if upstream is congested
-    if (!clientPaused && upBuf > MAX_BUFFERED_AMOUNT) {
-      clientPaused = true;
-      try { client._socket.pause(); } catch {}
-      log('[BP ] pausing client (upstream congested)', { ip: clientIP, upBuf });
+    // If upstream is congested, pause client TCP reads
+    if (!pauseClientReads && upBuf > PAUSE_AT) {
+      pauseClientReads = true;
+      try { client._socket?.pause(); } catch {}
+      log('[BP ] pause client reads', { ip: clientIP, upBuf });
+    } else if (pauseClientReads && upBuf < RESUME_AT) {
+      pauseClientReads = false;
+      try { client._socket?.resume(); } catch {}
+      log('[BP ] resume client reads', { ip: clientIP, upBuf });
     }
 
-    // Resume when it drains
-    if (clientPaused && upBuf < RESUME_BUFFERED_AMOUNT) {
-      clientPaused = false;
-      try { client._socket.resume(); } catch {}
-      log('[BP ] resuming client', { ip: clientIP, upBuf });
-    }
-
-    // If client is congested, pause upstream reads
-    // (rare, but can happen on slow devices)
-    if (clBuf > MAX_BUFFERED_AMOUNT) {
-      try { upstream._socket.pause(); } catch {}
-    } else {
-      try { upstream._socket.resume(); } catch {}
+    // If client is congested, pause upstream TCP reads
+    if (!pauseUpstreamReads && clBuf > PAUSE_AT) {
+      pauseUpstreamReads = true;
+      try { upstream._socket?.pause(); } catch {}
+      log('[BP ] pause upstream reads', { ip: clientIP, clBuf });
+    } else if (pauseUpstreamReads && clBuf < RESUME_AT) {
+      pauseUpstreamReads = false;
+      try { upstream._socket?.resume(); } catch {}
+      log('[BP ] resume upstream reads', { ip: clientIP, clBuf });
     }
   }
 
-  const bpTimer = setInterval(maybeApplyBackpressure, 50);
+  const bpTimer = setInterval(applyBackpressure, 50);
 
-  function cleanupAll() {
-    clearInterval(bpTimer);
-    cleanup();
-  }
+  upstream.on('open', () => {
+    clearTimeout(openTimer);
+    log('[UP ] upstream open', { ip: clientIP });
 
-  // IMPORTANT: preserve isBinary BOTH ways
-  client.on('message', (data, isBinary) => {
-    touch();
-    if (upstream.readyState !== WebSocket.OPEN) return;
-    upstream.send(data, { binary: isBinary, compress: false, fin: true }, (err) => {
-      if (err) log('[ERR] send to upstream failed', err?.message || err);
-    });
-    maybeApplyBackpressure();
+    // Upstream TCP tuning
+    try {
+      upstream._socket?.setNoDelay(true);
+      upstream._socket?.setKeepAlive(true, 15000);
+    } catch {}
+
+    // Flush queued packets exactly as-is
+    while (queue.length && upstream.readyState === WebSocket.OPEN) {
+      const m = queue.shift();
+      queueBytes -= m.size;
+      upstream.send(m.data, { binary: m.isBinary, compress: false });
+    }
   });
 
+  // Client -> Upstream (PRESERVE isBinary!)
+  client.on('message', (data, isBinary) => {
+    touch();
+
+    if (upstream.readyState === WebSocket.OPEN) {
+      upstream.send(data, { binary: isBinary, compress: false }, (err) => {
+        if (err) log('[ERR] send upstream', err?.message || err);
+      });
+    } else if (upstream.readyState === WebSocket.CONNECTING) {
+      // queue early packets
+      const size =
+        typeof data === 'string'
+          ? Buffer.byteLength(data)
+          : (data?.length ?? 0);
+
+      queue.push({ data, isBinary, size });
+      queueBytes += size;
+
+      if (queueBytes > MAX_QUEUE_BYTES) {
+        log('[WARN] queue overflow', { ip: clientIP, queueBytes });
+        safeClose(1009, 'queue overflow');
+      }
+    } else {
+      safeClose(1011, 'upstream not available');
+    }
+
+    applyBackpressure();
+  });
+
+  // Upstream -> Client (PRESERVE isBinary!)
   upstream.on('message', (data, isBinary) => {
     touch();
-    if (client.readyState !== WebSocket.OPEN) return;
-    client.send(data, { binary: isBinary, compress: false, fin: true }, (err) => {
-      if (err) log('[ERR] send to client failed', err?.message || err);
-    });
-    maybeApplyBackpressure();
+
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data, { binary: isBinary, compress: false }, (err) => {
+        if (err) log('[ERR] send client', err?.message || err);
+      });
+    }
+
+    applyBackpressure();
   });
 
   upstream.on('close', (code, reason) => {
-    log('[UP ] upstream close', { code, reason: reason?.toString?.() || '', ip: clientIP });
-    cleanupAll();
+    log('[UP ] upstream close', { ip: clientIP, code, reason: reason?.toString?.() || '' });
     safeClose(code || 1000, 'upstream closed');
   });
 
   client.on('close', (code, reason) => {
-    log('[IN ] client close', { code, reason: reason?.toString?.() || '', ip: clientIP });
-    cleanupAll();
+    log('[IN ] client close', { ip: clientIP, code, reason: reason?.toString?.() || '' });
     safeClose(code || 1000, 'client closed');
   });
 
   upstream.on('error', (err) => {
-    log('[UP ] upstream error', err?.message || err, { ip: clientIP });
-    cleanupAll();
+    log('[UP ] upstream error', { ip: clientIP, err: err?.message || err });
     safeClose(1011, 'upstream error');
   });
 
   client.on('error', (err) => {
-    log('[IN ] client error', err?.message || err, { ip: clientIP });
-    cleanupAll();
+    log('[IN ] client error', { ip: clientIP, err: err?.message || err });
     safeClose(1011, 'client error');
   });
 
@@ -303,6 +370,6 @@ wss.on('connection', (client, req) => {
   upstream.on('pong', touch);
 });
 
-server.listen(process.env.PORT || 10000, '0.0.0.0', () => {
-  log(`listening on ${process.env.PORT || 10000}`);
+server.listen(PORT, '0.0.0.0', () => {
+  log(`listening on ${PORT}`);
 });
