@@ -1,16 +1,16 @@
 'use strict';
 
 const http = require('http');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
 const WebSocket = require('ws');
 
 const PORT = process.env.PORT || 10000;
 
-// WS and site share "/"
-const WS_PATH = '/';
+// Your upstream EaglerHost WSS:
 const UPSTREAM_URL = 'wss://PromiseLand-CKMC.eagler.host/';
 
+// Serve files from ./public
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 function contentType(filePath) {
@@ -27,14 +27,11 @@ function contentType(filePath) {
     '.webp': 'image/webp',
     '.svg': 'image/svg+xml',
     '.ico': 'image/x-icon',
-    '.txt': 'text/plain; charset=utf-8',
-    '.woff': 'font/woff',
-    '.woff2': 'font/woff2',
-    '.ttf': 'font/ttf',
+    '.txt': 'text/plain; charset=utf-8'
   })[ext] || 'application/octet-stream';
 }
 
-function servePublic(req, res) {
+function serveStatic(req, res) {
   const urlPathRaw = (req.url || '').split('?')[0];
 
   if (urlPathRaw === '/health') {
@@ -43,21 +40,21 @@ function servePublic(req, res) {
     return;
   }
 
-  let urlPath;
+  let urlPath = urlPathRaw;
+  if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
+
+  let safePath;
   try {
-    urlPath = decodeURIComponent(urlPathRaw || '/');
+    safePath = path.normalize(decodeURIComponent(urlPath)).replace(/^(\.\.(\/|\\|$))+/, '');
   } catch {
     res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('Bad Request');
     return;
   }
 
-  if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
-
-  // prevent traversal
-  const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, '');
   const filePath = path.join(PUBLIC_DIR, safePath);
 
+  // Prevent directory traversal
   if (!filePath.startsWith(PUBLIC_DIR)) {
     res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('Forbidden');
@@ -65,106 +62,90 @@ function servePublic(req, res) {
   }
 
   fs.stat(filePath, (err, st) => {
-    // SPA fallback to index.html
     const chosen = (!err && st.isFile()) ? filePath : path.join(PUBLIC_DIR, 'index.html');
-
     fs.readFile(chosen, (e2, data) => {
       if (e2) {
         res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
         res.end('Not Found');
         return;
       }
-
       res.writeHead(200, {
         'content-type': contentType(chosen),
-        'cache-control': chosen.endsWith('.html') ? 'no-cache' : 'public, max-age=86400',
+        'cache-control': chosen.endsWith('.html') ? 'no-cache' : 'public, max-age=86400'
       });
       res.end(data);
     });
   });
 }
 
-const server = http.createServer(servePublic);
+const server = http.createServer(serveStatic);
 
-// WS server: only triggered on Upgrade requests
+// Don’t let Node kill upgraded sockets
+server.keepAliveTimeout = 0;
+server.headersTimeout = 0;
+
 const wss = new WebSocket.Server({ noServer: true, perMessageDeflate: false });
 
 server.on('upgrade', (req, socket, head) => {
+  // IMPORTANT: we accept WS on "/" (and also "/?something")
   const urlPath = (req.url || '').split('?')[0];
 
-  // Only accept WS upgrades on "/"
-  if (urlPath !== WS_PATH) {
-    socket.destroy();
-    return;
-  }
+  // If you ONLY want WS at "/", enforce it:
+  // if (urlPath !== '/') { socket.destroy(); return; }
 
-  // Must be an Upgrade request, otherwise don't treat it as WS
-  const upgrade = (req.headers.upgrade || '').toLowerCase();
-  if (upgrade !== 'websocket') {
-    socket.destroy();
-    return;
-  }
-
-  wss.handleUpgrade(req, socket, head, (clientWs) => {
-    wss.emit('connection', clientWs, req);
+  // Accept upgrades on any path (safer if the client sends slight variations)
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    wss.emit('connection', ws, req);
   });
 });
 
-wss.on('connection', (clientWs, req) => {
-  const upstreamWs = new WebSocket(UPSTREAM_URL, {
+wss.on('connection', (client, req) => {
+  // Forward Sec-WebSocket-Protocol EXACTLY (this is a common “no MOTD” cause)
+  const protoHeader = req.headers['sec-websocket-protocol'];
+  const protocols = protoHeader
+    ? protoHeader.split(',').map(s => s.trim()).filter(Boolean)
+    : undefined;
+
+  const origin = req.headers.origin || 'https://promiselandmc.com';
+
+  const upstream = new WebSocket(UPSTREAM_URL, protocols, {
     perMessageDeflate: false,
     headers: {
-      Origin: req.headers.origin || 'https://promiselandmc.com',
-    },
+      Origin: origin
+    }
   });
 
-  const queue = [];
-  let upstreamOpen = false;
-  let closed = false;
-
-  function closeBoth(code = 1000, reason = 'closed') {
-    if (closed) return;
-    closed = true;
-    try { clientWs.close(code, reason); } catch {}
-    try { upstreamWs.close(code, reason); } catch {}
+  const closeBoth = (code = 1000, reason = '') => {
+    try { client.close(code, reason); } catch {}
+    try { upstream.close(code, reason); } catch {}
     setTimeout(() => {
-      try { clientWs.terminate(); } catch {}
-      try { upstreamWs.terminate(); } catch {}
-    }, 250);
-  }
+      try { client.terminate(); } catch {}
+      try { upstream.terminate(); } catch {}
+    }, 200);
+  };
 
-  upstreamWs.on('open', () => {
-    upstreamOpen = true;
-    while (queue.length && upstreamWs.readyState === WebSocket.OPEN) {
-      upstreamWs.send(queue.shift());
-    }
+  upstream.on('open', () => {
+    // Pipe both directions
+    client.on('message', (data, isBinary) => {
+      if (upstream.readyState === WebSocket.OPEN) {
+        upstream.send(data, { binary: isBinary });
+      }
+    });
+
+    upstream.on('message', (data, isBinary) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(data, { binary: isBinary });
+      }
+    });
   });
 
-  // client -> upstream
-  clientWs.on('message', (data) => {
-    if (upstreamOpen && upstreamWs.readyState === WebSocket.OPEN) {
-      upstreamWs.send(data);
-    } else {
-      // small buffer so early packets don't get dropped
-      if (queue.length < 512) queue.push(data);
-      else closeBoth(1013, 'upstream not ready');
-    }
-  });
+  upstream.on('close', (c, r) => closeBoth(c || 1000, r?.toString?.() || 'upstream closed'));
+  client.on('close', (c, r) => closeBoth(c || 1000, r?.toString?.() || 'client closed'));
 
-  // upstream -> client
-  upstreamWs.on('message', (data) => {
-    if (clientWs.readyState === WebSocket.OPEN) clientWs.send(data);
-  });
-
-  clientWs.on('close', (code, reason) => closeBoth(code, reason?.toString?.() || 'client closed'));
-  upstreamWs.on('close', (code, reason) => closeBoth(code, reason?.toString?.() || 'upstream closed'));
-
-  clientWs.on('error', () => closeBoth(1011, 'client error'));
-  upstreamWs.on('error', () => closeBoth(1011, 'upstream error'));
+  upstream.on('error', () => closeBoth(1011, 'upstream error'));
+  client.on('error', () => closeBoth(1011, 'client error'));
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`listening on ${PORT}`);
-  console.log(`serving public from: ${PUBLIC_DIR}`);
-  console.log(`ws proxy on: ${WS_PATH} -> ${UPSTREAM_URL}`);
+  console.log(`listening on ${PORT} (HTTP on /, WS upgrade on /)`);
 });
