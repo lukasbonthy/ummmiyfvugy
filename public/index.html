@@ -23,7 +23,15 @@
           },
           boxShadow: {
             glow: "0 0 35px rgba(157,78,221,.25)",
-            soft: "0 16px 44px rgba(0,0,0,.55)"
+            soft: "0 18px 60px rgba(0,0,0,.58)"
+          },
+          keyframes: {
+            floaty: { "0%,100%": { transform: "translateY(0px)" }, "50%": { transform: "translateY(-6px)" } },
+            shimmer: { "0%": { backgroundPosition: "0% 50%" }, "100%": { backgroundPosition: "100% 50%" } }
+          },
+          animation: {
+            floaty: "floaty 3.2s ease-in-out infinite",
+            shimmer: "shimmer 7s ease-in-out infinite"
           }
         }
       }
@@ -43,24 +51,36 @@
     .glass {
       background: linear-gradient(135deg, rgba(157,78,221,.14), rgba(0,0,0,.10)), rgba(18,18,34,.82);
       border: 1px solid rgba(157,78,221,.25);
-      backdrop-filter: blur(10px);
+      backdrop-filter: blur(12px);
     }
     .glass2 {
-      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
       border: 1px solid rgba(255,255,255,.14);
-      backdrop-filter: blur(10px);
+      backdrop-filter: blur(12px);
     }
     .focus-ring:focus-visible{
       outline: 3px solid rgba(255, 212, 0, .55);
       outline-offset: 2px;
     }
+    /* nicer thin scrollbars (optional) */
+    ::-webkit-scrollbar{ height:10px; width:10px; }
+    ::-webkit-scrollbar-thumb{ background: rgba(157,78,221,.35); border-radius: 999px; }
+    ::-webkit-scrollbar-track{ background: rgba(255,255,255,.04); }
   </style>
 </head>
 
-<body class="font-outfit text-white min-h-screen overflow-x-hidden bg-[radial-gradient(1000px_700px_at_10%_10%,rgba(157,78,221,.18),transparent_55%),radial-gradient(900px_650px_at_90%_85%,rgba(123,44,191,.16),transparent_55%),linear-gradient(180deg,#070710,#0b0b16)]">
+<body class="font-outfit text-white min-h-screen overflow-x-hidden
+             bg-[radial-gradient(1000px_700px_at_10%_10%,rgba(157,78,221,.18),transparent_55%),radial-gradient(900px_650px_at_90%_85%,rgba(123,44,191,.16),transparent_55%),linear-gradient(180deg,#070710,#0b0b16)]">
+
+  <!-- Ambient blobs -->
+  <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10">
+    <div class="absolute -top-24 -left-24 w-[420px] h-[420px] rounded-full bg-[rgba(157,78,221,.22)] blur-3xl animate-floaty"></div>
+    <div class="absolute -bottom-28 -right-20 w-[520px] h-[520px] rounded-full bg-[rgba(123,44,191,.18)] blur-3xl animate-floaty [animation-delay:1.2s]"></div>
+  </div>
 
   <!-- Topbar -->
-  <header class="sticky top-0 z-50 border-b border-[rgba(157,78,221,.20)] bg-[linear-gradient(180deg,rgba(7,7,16,.90),rgba(7,7,16,.62))] backdrop-blur">
+  <header class="sticky top-0 z-50 border-b border-[rgba(157,78,221,.20)]
+                 bg-[linear-gradient(180deg,rgba(7,7,16,.92),rgba(7,7,16,.64))] backdrop-blur">
     <div class="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="w-11 h-11 rounded-2xl grid place-items-center border border-white/15 shadow-glow
@@ -68,20 +88,33 @@
           <i class="fa-solid fa-cross text-white drop-shadow"></i>
         </div>
         <div class="leading-tight">
-          <div class="font-black tracking-wide text-lg">PromiseLand-CKMC</div>
-          <div class="text-white/70 -mt-0.5">Minecraft Portal</div>
+          <div class="font-black tracking-wide text-lg" id="brandName">PromiseLand-CKMC</div>
+          <div class="text-white/70 -mt-0.5" id="brandSub">Minecraft Portal</div>
+        </div>
+
+        <!-- Live status chip -->
+        <div class="hidden md:flex items-center gap-2 ml-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5">
+          <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-white/30"></span>
+          <span class="text-sm font-bold text-white/75" id="statusText">Checking…</span>
         </div>
       </div>
 
       <nav class="flex items-center gap-2" aria-label="Social links">
-        <a id="discordLink" href="#" target="_blank" rel="noopener"
-           class="focus-ring w-11 h-11 rounded-full grid place-items-center border border-[rgba(157,78,221,.22)] bg-[rgba(157,78,221,.10)] shadow-lg hover:-translate-y-0.5 hover:bg-[rgba(157,78,221,.20)] transition">
+        <a id="discordLink" href="#" target="_blank" rel="noopener" title="Discord"
+           class="focus-ring w-11 h-11 rounded-full grid place-items-center border border-[rgba(157,78,221,.22)]
+                  bg-[rgba(157,78,221,.10)] shadow-lg hover:-translate-y-0.5 hover:bg-[rgba(157,78,221,.20)] transition">
           <i class="fa-brands fa-discord"></i>
         </a>
-        <a id="youtubeLink" href="#" target="_blank" rel="noopener"
-           class="focus-ring w-11 h-11 rounded-full grid place-items-center border border-[rgba(157,78,221,.22)] bg-[rgba(157,78,221,.10)] shadow-lg hover:-translate-y-0.5 hover:bg-[rgba(157,78,221,.20)] transition">
+        <a id="youtubeLink" href="#" target="_blank" rel="noopener" title="YouTube"
+           class="focus-ring w-11 h-11 rounded-full grid place-items-center border border-[rgba(157,78,221,.22)]
+                  bg-[rgba(157,78,221,.10)] shadow-lg hover:-translate-y-0.5 hover:bg-[rgba(157,78,221,.20)] transition">
           <i class="fa-brands fa-youtube"></i>
         </a>
+        <button id="themeToggle" title="Toggle effects"
+          class="focus-ring w-11 h-11 rounded-full grid place-items-center border border-white/15 bg-white/5
+                 hover:bg-white/10 transition">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+        </button>
       </nav>
     </div>
   </header>
@@ -89,61 +122,104 @@
   <main class="mx-auto max-w-6xl px-4 py-7 pb-20">
 
     <!-- HERO -->
-    <section class="glass rounded-3xl shadow-soft overflow-hidden p-6 md:p-8">
-      <div class="grid md:grid-cols-5 gap-6 items-center">
+    <section class="glass rounded-3xl shadow-soft overflow-hidden p-6 md:p-8 relative">
+      <!-- subtle border glow -->
+      <div aria-hidden="true" class="pointer-events-none absolute -inset-px rounded-3xl
+           bg-[linear-gradient(90deg,rgba(255,255,255,.10),rgba(157,78,221,.25),rgba(255,255,255,.10))]
+           opacity-40 blur-xl"></div>
+
+      <div class="relative grid md:grid-cols-5 gap-6 items-center">
         <div class="md:col-span-3">
           <div class="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-white/15 bg-white/5 text-white/75 font-semibold tracking-wide">
             <i class="fa-solid fa-dove text-gold"></i>
-            Chill • Jesus-centered • Community
+            <span id="kickerText">Chill • Jesus-centered • Community</span>
           </div>
 
           <h1 class="mt-4 font-black tracking-wide leading-[1.02] text-4xl md:text-5xl lg:text-6xl
-                     text-transparent bg-clip-text bg-gradient-to-r from-[#f2e9ff] via-[#c77dff] to-[#9d4edd] drop-shadow">
+                     text-transparent bg-clip-text bg-gradient-to-r from-[#f2e9ff] via-[#c77dff] to-[#9d4edd]
+                     [background-size:200%_200%] animate-shimmer drop-shadow">
             FUN, FRIENDSHIP, & FAITH
           </h1>
 
-          <p class="mt-3 text-white/75 text-base md:text-lg max-w-2xl">
+          <p class="mt-3 text-white/75 text-base md:text-lg max-w-2xl" id="taglineText">
             A chill, Jesus-centered Minecraft community focused on fun, friendship, and faith.
             Join through the portal, add the server, and come hang out.
           </p>
 
+          <!-- Primary actions -->
           <div class="mt-5 flex flex-wrap gap-3">
             <button id="openInstructions"
               class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
-                     border border-[rgba(157,78,221,.28)] bg-[rgba(157,78,221,.10)]
-                     hover:bg-[rgba(157,78,221,.18)] hover:-translate-y-0.5 transition">
+                     border border-[rgba(157,78,221,.28)] bg-[rgba(157,78,221,.12)]
+                     hover:bg-[rgba(157,78,221,.22)] hover:-translate-y-0.5 transition">
               <i class="fa-solid fa-plug"></i> Connection Instructions
             </button>
+
             <button id="copyIPTop"
               class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
                      border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition">
               <i class="fa-regular fa-copy"></i> Copy Server Address
             </button>
+
+            <button id="scrollToPortal"
+              class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
+                     border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition">
+              <i class="fa-solid fa-bolt"></i> Quick Launch
+            </button>
+          </div>
+
+          <!-- Mini badges -->
+          <div class="mt-5 flex flex-wrap gap-2 text-sm">
+            <span class="px-3 py-1.5 rounded-full border border-white/10 bg-white/5 font-bold text-white/75">
+              <i class="fa-solid fa-shield-heart text-gold mr-1"></i> Family-friendly
+            </span>
+            <span class="px-3 py-1.5 rounded-full border border-white/10 bg-white/5 font-bold text-white/75">
+              <i class="fa-solid fa-server text-brand mr-1"></i> EaglerHost Proxy
+            </span>
+            <span class="px-3 py-1.5 rounded-full border border-white/10 bg-white/5 font-bold text-white/75">
+              <i class="fa-solid fa-wifi text-brand mr-1"></i> Low-lag routing
+            </span>
           </div>
         </div>
 
         <!-- Quick info card -->
         <aside class="md:col-span-2 glass2 rounded-3xl p-4 md:p-5 shadow-lg">
           <div class="space-y-3">
+
+            <!-- Address -->
             <div class="rounded-2xl border border-[rgba(157,78,221,.16)] bg-black/25 p-4">
               <div class="flex items-center justify-between gap-3">
                 <div class="text-white/70 font-semibold flex items-center gap-2">
                   <i class="fa-solid fa-globe text-brand"></i> Server Address
                 </div>
+                <span class="text-xs font-black text-white/60 border border-white/10 bg-white/5 px-2 py-1 rounded-full">WSS</span>
               </div>
 
               <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
                 <span id="serverAddrText" class="font-mono font-bold text-sm md:text-base break-all">
                   wss://PromiseLand-CKMC.eagler.host
                 </span>
-                <button id="copyIP"
-                  class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold
-                         border border-white/15 bg-white/5 hover:bg-white/10 transition">
-                  <i class="fa-regular fa-copy"></i> Copy
-                </button>
+
+                <div class="flex gap-2">
+                  <button id="copyIP"
+                    class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold
+                           border border-white/15 bg-white/5 hover:bg-white/10 transition">
+                    <i class="fa-regular fa-copy"></i> Copy
+                  </button>
+                  <button id="openInNew"
+                    class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold
+                           border border-white/15 bg-white/5 hover:bg-white/10 transition">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="mt-3 text-xs text-white/60">
+                Saved in Multiplayer → Add Server
               </div>
             </div>
 
+            <!-- Version + Tips -->
             <div class="rounded-2xl border border-[rgba(157,78,221,.16)] bg-black/25 p-4 flex items-center justify-between gap-3">
               <div class="text-white/70 font-semibold flex items-center gap-2">
                 <i class="fa-solid fa-code-branch text-brand"></i> Client Version
@@ -161,13 +237,26 @@
                 Keep <span class="font-extrabold">wss://</span> in the address.
               </div>
             </div>
+
+            <!-- “Add Server” quick guide -->
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div class="font-black flex items-center gap-2">
+                <i class="fa-solid fa-wand-magic-sparkles text-brand"></i> 10-second setup
+              </div>
+              <ol class="mt-2 text-white/75 text-sm leading-6 list-decimal pl-5">
+                <li>Open Portal</li>
+                <li>Multiplayer → Add Server</li>
+                <li>Paste address → Save → Join</li>
+              </ol>
+            </div>
+
           </div>
         </aside>
       </div>
     </section>
 
     <!-- PORTAL -->
-    <section class="mt-7 glass rounded-3xl p-6 md:p-7 shadow-lg">
+    <section id="portalSection" class="mt-7 glass rounded-3xl p-6 md:p-7 shadow-lg">
       <div class="flex items-end justify-between flex-wrap gap-3">
         <div>
           <h2 class="text-2xl font-black tracking-wide flex items-center gap-3">
@@ -179,7 +268,7 @@
 
       <div class="mt-5 grid md:grid-cols-2 gap-4">
         <button id="launchDesktop"
-          class="focus-ring group relative overflow-hidden rounded-3xl p-5 text-left min-h-[96px]
+          class="focus-ring group relative overflow-hidden rounded-3xl p-5 text-left min-h-[104px]
                  border border-white/15
                  bg-[radial-gradient(120px_80px_at_20%_15%,rgba(255,255,255,.15),transparent_60%),linear-gradient(135deg,rgba(157,78,221,.95),rgba(123,44,191,.92))]
                  shadow-lg hover:-translate-y-1 transition">
@@ -191,12 +280,15 @@
             <div>
               <div class="font-black tracking-widest uppercase">Desktop Portal</div>
               <div class="text-white/85 mt-1">Launch <span class="font-mono">/game.html</span></div>
+              <div class="mt-2 text-xs text-white/70">
+                Best on Chrome / Edge
+              </div>
             </div>
           </div>
         </button>
 
         <button id="launchMobile"
-          class="focus-ring group relative overflow-hidden rounded-3xl p-5 text-left min-h-[96px]
+          class="focus-ring group relative overflow-hidden rounded-3xl p-5 text-left min-h-[104px]
                  border border-white/15
                  bg-[radial-gradient(120px_80px_at_20%_15%,rgba(255,255,255,.15),transparent_60%),linear-gradient(135deg,rgba(157,78,221,.95),rgba(123,44,191,.92))]
                  shadow-lg hover:-translate-y-1 transition">
@@ -208,47 +300,65 @@
             <div>
               <div class="font-black tracking-widest uppercase">Mobile Portal</div>
               <div class="text-white/85 mt-1">Launch <span class="font-mono">/mobile.html</span></div>
+              <div class="mt-2 text-xs text-white/70">
+                Tap + drag to look around
+              </div>
             </div>
           </div>
         </button>
       </div>
 
-      <div class="mt-4">
+      <div class="mt-4 flex flex-wrap gap-3">
         <button id="openInstructions2"
           class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
-                 border border-[rgba(157,78,221,.28)] bg-[rgba(157,78,221,.10)]
-                 hover:bg-[rgba(157,78,221,.18)] hover:-translate-y-0.5 transition">
+                 border border-[rgba(157,78,221,.28)] bg-[rgba(157,78,221,.12)]
+                 hover:bg-[rgba(157,78,221,.22)] hover:-translate-y-0.5 transition">
           <i class="fa-solid fa-circle-question"></i> How do I connect?
+        </button>
+
+        <button id="copyShort"
+          class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
+                 border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition">
+          <i class="fa-solid fa-link"></i> Copy Invite Text
         </button>
       </div>
     </section>
 
     <!-- FEATURES -->
     <section class="mt-7 glass rounded-3xl p-6 md:p-7 shadow-lg">
-      <div>
-        <h2 class="text-2xl font-black tracking-wide flex items-center gap-3">
-          <i class="fa-solid fa-star text-brand"></i> What We’re About
-        </h2>
-        <p class="text-white/70 mt-1">Good vibes, good people, and a space that points back to Jesus.</p>
+      <div class="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <h2 class="text-2xl font-black tracking-wide flex items-center gap-3">
+            <i class="fa-solid fa-star text-brand"></i> What We’re About
+          </h2>
+          <p class="text-white/70 mt-1">Good vibes, good people, and a space that points back to Jesus.</p>
+        </div>
+        <div class="text-sm text-white/65">
+          <i class="fa-solid fa-heart text-gold mr-1"></i> Keep it respectful in chat
+        </div>
       </div>
 
       <div class="mt-5 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)] hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
+        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)]
+                    hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
           <i class="fa-solid fa-handshake-angle text-2xl text-brand"></i>
           <h3 class="mt-3 font-black">Friendly Community</h3>
           <p class="mt-2 text-white/70">Meet people, build together, and keep the chat respectful.</p>
         </div>
-        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)] hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
+        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)]
+                    hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
           <i class="fa-solid fa-dove text-2xl text-brand"></i>
           <h3 class="mt-3 font-black">Jesus-Centered</h3>
           <p class="mt-2 text-white/70">Faith is welcome here — we keep it uplifting and positive.</p>
         </div>
-        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)] hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
+        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)]
+                    hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
           <i class="fa-solid fa-campground text-2xl text-brand"></i>
           <h3 class="mt-3 font-black">Survival Fun</h3>
           <p class="mt-2 text-white/70">Explore, grind, build bases, and make memories.</p>
         </div>
-        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)] hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
+        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)]
+                    hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
           <i class="fa-solid fa-people-group text-2xl text-brand"></i>
           <h3 class="mt-3 font-black">Friendship First</h3>
           <p class="mt-2 text-white/70">Play for fun — whether you’re new or experienced.</p>
@@ -258,34 +368,53 @@
 
     <!-- GALLERY -->
     <section class="mt-7 glass rounded-3xl p-6 md:p-7 shadow-lg">
-      <div>
-        <h2 class="text-2xl font-black tracking-wide flex items-center gap-3">
-          <i class="fa-solid fa-camera text-brand"></i> Server Preview
-        </h2>
-        <p class="text-white/70 mt-1">Update these screenshots anytime.</p>
+      <div class="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <h2 class="text-2xl font-black tracking-wide flex items-center gap-3">
+            <i class="fa-solid fa-camera text-brand"></i> Server Preview
+          </h2>
+          <p class="text-white/70 mt-1">Update these screenshots anytime.</p>
+        </div>
+
+        <button id="openGallery"
+          class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
+                 border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition">
+          <i class="fa-solid fa-up-right-and-down-left-from-center"></i> View Full
+        </button>
       </div>
 
       <div class="mt-5 grid md:grid-cols-2 gap-4">
-        <div class="relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg">
+        <button class="shotBtn relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg text-left"
+                data-img="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/Spawn.png"
+                data-cap="Spawn">
           <img class="w-full h-full object-cover scale-[1.02] hover:scale-[1.06] transition duration-300"
                src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/Spawn.png" alt="Spawn area screenshot">
           <div class="absolute left-3 bottom-3 px-3 py-2 rounded-2xl bg-black/50 border border-white/15 font-black">Spawn</div>
-        </div>
-        <div class="relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg">
+        </button>
+
+        <button class="shotBtn relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg text-left"
+                data-img="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/growth.png"
+                data-cap="Growth">
           <img class="w-full h-full object-cover scale-[1.02] hover:scale-[1.06] transition duration-300"
                src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/growth.png" alt="Growth area screenshot">
           <div class="absolute left-3 bottom-3 px-3 py-2 rounded-2xl bg-black/50 border border-white/15 font-black">Growth</div>
-        </div>
-        <div class="relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg">
+        </button>
+
+        <button class="shotBtn relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg text-left"
+                data-img="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/World1.png"
+                data-cap="World">
           <img class="w-full h-full object-cover scale-[1.02] hover:scale-[1.06] transition duration-300"
                src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/World1.png" alt="World screenshot 1">
           <div class="absolute left-3 bottom-3 px-3 py-2 rounded-2xl bg-black/50 border border-white/15 font-black">World</div>
-        </div>
-        <div class="relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg">
+        </button>
+
+        <button class="shotBtn relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg text-left"
+                data-img="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/World2.png"
+                data-cap="World">
           <img class="w-full h-full object-cover scale-[1.02] hover:scale-[1.06] transition duration-300"
                src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/World2.png" alt="World screenshot 2">
           <div class="absolute left-3 bottom-3 px-3 py-2 rounded-2xl bg-black/50 border border-white/15 font-black">World</div>
-        </div>
+        </button>
       </div>
     </section>
   </main>
@@ -293,7 +422,7 @@
   <footer class="border-t border-[rgba(157,78,221,.22)] bg-[linear-gradient(180deg,rgba(7,7,16,.20),rgba(7,7,16,.70))]">
     <div class="mx-auto max-w-6xl px-4 py-8 flex flex-wrap items-center justify-between gap-4">
       <div>
-        <div class="font-black tracking-wide">© <span id="year"></span> PromiseLand-CKMC</div>
+        <div class="font-black tracking-wide">© <span id="year"></span> <span id="footerName">PromiseLand-CKMC</span></div>
         <div class="text-white/70 mt-1">Fun • Friendship • Faith</div>
       </div>
 
@@ -306,7 +435,7 @@
     </div>
   </footer>
 
-  <!-- Modal -->
+  <!-- Modal: Instructions -->
   <div id="modal" class="fixed inset-0 hidden place-items-center bg-black/75 z-[999] p-4" aria-hidden="true">
     <div class="w-full max-w-4xl glass rounded-3xl shadow-soft p-4 md:p-6" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="flex items-center justify-between gap-3 pb-3">
@@ -359,6 +488,42 @@
           <div class="mt-4 text-white/70 text-center">
             Version: <span class="font-extrabold text-white" id="modalVersion">1.8.8</span>
           </div>
+
+          <div class="mt-4 text-white/70 text-center text-sm">
+            If it fails, refresh and try again.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Gallery -->
+  <div id="galleryModal" class="fixed inset-0 hidden place-items-center bg-black/80 z-[999] p-4" aria-hidden="true">
+    <div class="w-full max-w-5xl glass rounded-3xl shadow-soft p-4 md:p-6" role="dialog" aria-modal="true" aria-labelledby="galleryTitle">
+      <div class="flex items-center justify-between gap-3 pb-3">
+        <h3 id="galleryTitle" class="text-xl md:text-2xl font-black flex items-center gap-2">
+          <i class="fa-solid fa-camera text-brand"></i> Preview
+        </h3>
+        <button id="closeGallery"
+          class="focus-ring w-11 h-11 rounded-2xl grid place-items-center border border-white/15 bg-white/5 hover:bg-white/10 transition"
+          aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="rounded-3xl border border-white/10 bg-black/25 overflow-hidden">
+        <img id="galleryImg" class="w-full max-h-[70vh] object-contain" src="" alt="Preview image">
+      </div>
+
+      <div class="mt-3 flex items-center justify-between gap-3 flex-wrap">
+        <div class="font-black text-white/90" id="galleryCap">Spawn</div>
+        <div class="flex gap-2">
+          <button id="prevImg" class="focus-ring px-4 py-2 rounded-2xl border border-white/15 bg-white/5 hover:bg-white/10 font-extrabold transition">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+          <button id="nextImg" class="focus-ring px-4 py-2 rounded-2xl border border-white/15 bg-white/5 hover:bg-white/10 font-extrabold transition">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
         </div>
       </div>
     </div>
@@ -386,11 +551,18 @@
       youtube: "https://www.youtube.com/@SwiflyNetwork",
       desktopPortalPath: "/game.html",
       mobilePortalPath: "/mobile.html",
+      // Optional: a health endpoint on your proxy (recommended). Keep "/health" on same domain.
+      healthPath: "/health"
     };
 
     const $ = (id) => document.getElementById(id);
     const setText = (id, v) => { const el = $(id); if (el) el.textContent = v; };
     const setHref = (id, v) => { const el = $(id); if (el) el.href = v; };
+
+    // Brand
+    setText("brandName", SERVER.name);
+    setText("footerName", SERVER.name);
+    setText("taglineText", SERVER.tagline);
 
     // Links
     setHref("discordLink", SERVER.discord);
@@ -412,6 +584,16 @@
     setText("serverVersionPill", SERVER.version);
     setText("year", new Date().getFullYear());
 
+    // Open WSS in new tab (useful to see if browser blocks)
+    $("openInNew").addEventListener("click", () => {
+      window.open(SERVER.address, "_blank", "noopener,noreferrer");
+    });
+
+    // Scroll to portal
+    $("scrollToPortal").addEventListener("click", () => {
+      $("portalSection").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
     // Launch portal pages
     function launch(path){
       localStorage.setItem("game", "true");
@@ -420,7 +602,7 @@
     $("launchDesktop").addEventListener("click", () => launch(SERVER.desktopPortalPath));
     $("launchMobile").addEventListener("click", () => launch(SERVER.mobilePortalPath));
 
-    // Modal
+    // Modal (instructions)
     const modal = $("modal");
     function openModal(){
       modal.classList.remove("hidden");
@@ -436,7 +618,7 @@
     $("openInstructions2").addEventListener("click", openModal);
     $("closeModal").addEventListener("click", closeModal);
     modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
-    window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+    window.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeModal(); closeGallery(); } });
 
     // Toast
     const toast = $("toast");
@@ -457,7 +639,7 @@
     async function copyText(text){
       try{
         await navigator.clipboard.writeText(text);
-        showToast("Copied: " + text);
+        showToast("Copied!");
       }catch{
         const ta = document.createElement("textarea");
         ta.value = text;
@@ -465,13 +647,86 @@
         ta.select();
         document.execCommand("copy");
         document.body.removeChild(ta);
-        showToast("Copied: " + text);
+        showToast("Copied!");
       }
     }
 
     $("copyIP").addEventListener("click", () => copyText(SERVER.address));
     $("copyIPModal").addEventListener("click", () => copyText(SERVER.address));
     $("copyIPTop").addEventListener("click", () => copyText(SERVER.address));
+
+    // Copy invite text
+    $("copyShort").addEventListener("click", () => {
+      const msg = `${SERVER.name} — ${SERVER.tagline}\nAdd Server Address:\n${SERVER.address}\nVersion: ${SERVER.version}\nDiscord: ${SERVER.discord}`;
+      copyText(msg);
+      showToast("Invite copied!");
+    });
+
+    // Status ping (checks your own /health, not the upstream)
+    async function checkStatus(){
+      const dot = $("statusDot");
+      const text = $("statusText");
+      try{
+        const r = await fetch(SERVER.healthPath, { cache: "no-store" });
+        if (!r.ok) throw new Error("bad");
+        dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,.45)]";
+        text.textContent = "Proxy Online";
+      }catch{
+        dot.className = "w-2.5 h-2.5 rounded-full bg-rose-400 shadow-[0_0_18px_rgba(251,113,133,.35)]";
+        text.textContent = "Proxy Offline";
+      }
+    }
+    checkStatus();
+    setInterval(checkStatus, 15000);
+
+    // Effects toggle (reduces motion + disables blobs)
+    const toggle = $("themeToggle");
+    let effectsOn = true;
+    toggle.addEventListener("click", () => {
+      effectsOn = !effectsOn;
+      document.querySelectorAll("[aria-hidden='true']")[0].style.display = effectsOn ? "" : "none";
+      showToast(effectsOn ? "Effects on" : "Effects off");
+    });
+
+    // Gallery modal
+    const galleryModal = $("galleryModal");
+    const galleryImg = $("galleryImg");
+    const galleryCap = $("galleryCap");
+    const closeGalleryBtn = $("closeGallery");
+    const openGalleryBtn = $("openGallery");
+    const prevBtn = $("prevImg");
+    const nextBtn = $("nextImg");
+
+    const shots = Array.from(document.querySelectorAll(".shotBtn")).map(btn => ({
+      src: btn.getAttribute("data-img"),
+      cap: btn.getAttribute("data-cap")
+    }));
+    let shotIndex = 0;
+
+    function openGalleryAt(i){
+      shotIndex = (i + shots.length) % shots.length;
+      galleryImg.src = shots[shotIndex].src;
+      galleryCap.textContent = shots[shotIndex].cap;
+      galleryModal.classList.remove("hidden");
+      galleryModal.classList.add("grid");
+      galleryModal.setAttribute("aria-hidden", "false");
+    }
+    function closeGallery(){
+      galleryModal.classList.add("hidden");
+      galleryModal.classList.remove("grid");
+      galleryModal.setAttribute("aria-hidden", "true");
+    }
+
+    document.querySelectorAll(".shotBtn").forEach((btn, i) => {
+      btn.addEventListener("click", () => openGalleryAt(i));
+    });
+
+    openGalleryBtn.addEventListener("click", () => openGalleryAt(0));
+    closeGalleryBtn.addEventListener("click", closeGallery);
+    galleryModal.addEventListener("click", (e) => { if (e.target === galleryModal) closeGallery(); });
+
+    prevBtn.addEventListener("click", () => openGalleryAt(shotIndex - 1));
+    nextBtn.addEventListener("click", () => openGalleryAt(shotIndex + 1));
   </script>
 </body>
 </html>
