@@ -12,12 +12,19 @@ const SPOOF_HOST = 'PromiseLand-CKMC.eagler.host';
 const SPOOF_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36';
 
-// Timers / limits
+// ---- Tunables ----
 const UPSTREAM_OPEN_TIMEOUT_MS = 12000;
-const IDLE_TIMEOUT_MS = 180000;
+const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 min
+const PING_INTERVAL_MS = 15000;
+const PONG_GRACE_MS = 45000;
 
-const MAX_QUEUE_MESSAGES = 12000;
-const MAX_QUEUE_BYTES = 24 * 1024 * 1024; // 24MB before upstream opens
+// Queue before upstream opens
+const MAX_QUEUE_MESSAGES = 15000;
+const MAX_QUEUE_BYTES = 32 * 1024 * 1024; // 32MB
+
+// Backpressure caps (when chunk traffic spikes)
+const HIGH_WATERMARK = 8 * 1024 * 1024;  // pause above 8MB buffered
+const LOW_WATERMARK  = 2 * 1024 * 1024;  // resume below 2MB buffered
 
 // Static site folder
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -32,12 +39,12 @@ function getHeader(req, name) {
   return Array.isArray(v) ? v[0] : v;
 }
 
-function toBuffer(data) {
-  if (Buffer.isBuffer(data)) return data;
-  if (data instanceof ArrayBuffer) return Buffer.from(data);
-  if (ArrayBuffer.isView(data)) return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-  if (typeof data === 'string') return Buffer.from(data, 'utf8');
-  return Buffer.from(String(data), 'utf8');
+function asByteLength(data) {
+  if (Buffer.isBuffer(data)) return data.length;
+  if (data instanceof ArrayBuffer) return data.byteLength;
+  if (ArrayBuffer.isView(data)) return data.byteLength;
+  if (typeof data === 'string') return Buffer.byteLength(data, 'utf8');
+  return Buffer.byteLength(String(data), 'utf8');
 }
 
 function contentType(filePath) {
@@ -112,7 +119,6 @@ const server = http.createServer((req, res) => {
       serveFile(res, filePath);
       return;
     }
-
     const fallback = path.join(PUBLIC_DIR, 'index.html');
     fs.stat(fallback, (e2, st2) => {
       if (!e2 && st2.isFile()) {
@@ -125,7 +131,7 @@ const server = http.createServer((req, res) => {
   });
 });
 
-// TCP “no jitter” defaults
+// TCP tweaks
 server.on('connection', (sock) => {
   try {
     sock.setNoDelay(true);
@@ -134,19 +140,16 @@ server.on('connection', (sock) => {
   } catch {}
 });
 
-// Don’t let Node kill idle long-lived connections
-server.keepAliveTimeout = 0;
-server.headersTimeout = 0;
+// Avoid Node killing idle HTTP keep-alive incorrectly (upgrade sockets aren’t affected much, but keep sane)
+server.keepAliveTimeout = 75_000;
+server.headersTimeout = 80_000;
 
 const wss = new WebSocket.Server({
   server,
   perMessageDeflate: false,
   skipUTF8Validation: true,
-  maxPayload: 0,
-
-  // BIG: avoid ws re-fragmenting frames in weird ways
-  fragmentOutgoingMessages: false,
-  fragmentationThreshold: Infinity,
+  // maxPayload default is 100MiB; don’t shrink it. Leaving default is safer than “0 confusion”.
+  // (ws docs: maxPayload is a message-size limit) :contentReference[oaicite:2]{index=2}
 });
 
 wss.on('connection', (client, req) => {
@@ -164,7 +167,6 @@ wss.on('connection', (client, req) => {
 
   log('[IN ] client connected', { ip: clientIP, origin: clientOrigin, protocols: clientProtocols });
 
-  // Client socket tweaks
   try {
     client._socket.setNoDelay(true);
     client._socket.setKeepAlive(true, 15000);
@@ -173,7 +175,10 @@ wss.on('connection', (client, req) => {
 
   let closed = false;
   let lastActivity = Date.now();
+  let lastClientPong = Date.now();
+  let lastUpstreamPong = Date.now();
 
+  // Queue until upstream opens
   const queue = [];
   let queueBytes = 0;
 
@@ -181,10 +186,7 @@ wss.on('connection', (client, req) => {
     perMessageDeflate: false,
     skipUTF8Validation: true,
     handshakeTimeout: UPSTREAM_OPEN_TIMEOUT_MS,
-
-    // Preserve subprotocols if present
     protocol: clientProtocols.length ? clientProtocols : undefined,
-
     headers: {
       Origin: SPOOF_ORIGIN,
       Host: SPOOF_HOST,
@@ -193,18 +195,6 @@ wss.on('connection', (client, req) => {
       'Cache-Control': 'no-cache',
       Pragma: 'no-cache',
     },
-
-    // BIG: don’t fragment upstream either
-    fragmentOutgoingMessages: false,
-    fragmentationThreshold: Infinity,
-  });
-
-  upstream.on('open', () => {
-    try {
-      upstream._socket.setNoDelay(true);
-      upstream._socket.setKeepAlive(true, 15000);
-      upstream._socket.setTimeout(0);
-    } catch {}
   });
 
   function touch() {
@@ -219,6 +209,14 @@ wss.on('connection', (client, req) => {
     try { upstream.close(code, reason); } catch {}
   }
 
+  function cleanupTimers() {
+    clearTimeout(openTimer);
+    clearInterval(idleTimer);
+    clearInterval(pingTimer);
+    clearInterval(bpTimer);
+  }
+
+  // --- Timers ---
   const openTimer = setTimeout(() => {
     if (upstream.readyState !== WebSocket.OPEN) {
       log('[UP ] open timeout', { ip: clientIP });
@@ -233,59 +231,122 @@ wss.on('connection', (client, req) => {
     }
   }, 10000);
 
-  // NOTE: don’t ping the browser client — only upstream if you want
-  const upstreamPingTimer = setInterval(() => {
+  // Ping BOTH sides (browser will auto-respond with pong; ws upstream too)
+  const pingTimer = setInterval(() => {
+    const now = Date.now();
+
+    if (client.readyState === WebSocket.OPEN) {
+      try { client.ping(); } catch {}
+      if (now - lastClientPong > PONG_GRACE_MS) {
+        log('[PING] client pong timeout', { ip: clientIP });
+        safeClose(1002, 'client pong timeout');
+      }
+    }
+
     if (upstream.readyState === WebSocket.OPEN) {
       try { upstream.ping(); } catch {}
+      if (now - lastUpstreamPong > PONG_GRACE_MS) {
+        log('[PING] upstream pong timeout', { ip: clientIP });
+        safeClose(1011, 'upstream pong timeout');
+      }
     }
-  }, 12000);
+  }, PING_INTERVAL_MS);
 
-  function cleanupTimers() {
-    clearTimeout(openTimer);
-    clearInterval(idleTimer);
-    clearInterval(upstreamPingTimer);
+  // Backpressure watchdog: pause the “other side” if buffers explode during chunk streaming
+  let clientPaused = false;
+  let upstreamPaused = false;
+
+  function pauseClient() {
+    if (clientPaused) return;
+    clientPaused = true;
+    try { client._socket.pause(); } catch {}
+  }
+  function resumeClient() {
+    if (!clientPaused) return;
+    clientPaused = false;
+    try { client._socket.resume(); } catch {}
+  }
+  function pauseUpstream() {
+    if (upstreamPaused) return;
+    upstreamPaused = true;
+    try { upstream._socket.pause(); } catch {}
+  }
+  function resumeUpstream() {
+    if (!upstreamPaused) return;
+    upstreamPaused = false;
+    try { upstream._socket.resume(); } catch {}
   }
 
-  // SEND OPTIONS: force binary, never compress, always FIN
-  const SEND_OPTS = { binary: true, compress: false, fin: true };
+  const bpTimer = setInterval(() => {
+    // If client is slow to receive, pause upstream reads
+    if (client.readyState === WebSocket.OPEN) {
+      if (client.bufferedAmount > HIGH_WATERMARK) pauseUpstream();
+      else if (client.bufferedAmount < LOW_WATERMARK) resumeUpstream();
+    }
+
+    // If upstream is slow to receive, pause client reads
+    if (upstream.readyState === WebSocket.OPEN) {
+      if (upstream.bufferedAmount > HIGH_WATERMARK) pauseClient();
+      else if (upstream.bufferedAmount < LOW_WATERMARK) resumeClient();
+    }
+  }, 25);
+
+  // --- Forwarding helpers (IMPORTANT: preserve isBinary) ---
+  function sendWS(ws, data, isBinary) {
+    // Don’t force binary. Preserve the frame type.
+    ws.send(data, { binary: !!isBinary, compress: false, fin: true }, (err) => {
+      if (err) log('[ERR] send failed', err?.message || err);
+    });
+  }
 
   // Client -> Upstream
-  client.on('message', (data) => {
+  client.on('message', (data, isBinary) => {
     touch();
-    const buf = toBuffer(data);
 
     if (upstream.readyState === WebSocket.OPEN) {
-      upstream.send(buf, SEND_OPTS);
-    } else if (upstream.readyState === WebSocket.CONNECTING) {
-      queue.push(buf);
-      queueBytes += buf.length;
+      sendWS(upstream, data, isBinary);
+      return;
+    }
+
+    if (upstream.readyState === WebSocket.CONNECTING) {
+      const bytes = asByteLength(data);
+      queue.push({ data, isBinary, bytes });
+      queueBytes += bytes;
 
       if (queue.length > MAX_QUEUE_MESSAGES || queueBytes > MAX_QUEUE_BYTES) {
         log('[WARN] queue overflow', { ip: clientIP, queueLen: queue.length, queueBytes });
         safeClose(1009, 'queue overflow');
       }
-    } else {
-      safeClose(1011, 'upstream not available');
+      return;
     }
+
+    safeClose(1011, 'upstream not available');
   });
 
   // Upstream -> Client
-  upstream.on('message', (data) => {
+  upstream.on('message', (data, isBinary) => {
     touch();
     if (client.readyState === WebSocket.OPEN) {
-      const buf = toBuffer(data);
-      client.send(buf, SEND_OPTS);
+      sendWS(client, data, isBinary);
     }
   });
 
   upstream.on('open', () => {
     clearTimeout(openTimer);
+
+    try {
+      upstream._socket.setNoDelay(true);
+      upstream._socket.setKeepAlive(true, 15000);
+      upstream._socket.setTimeout(0);
+    } catch {}
+
     log('[UP ] upstream open', { ip: clientIP });
 
+    // Flush queued early packets
     while (queue.length && upstream.readyState === WebSocket.OPEN) {
       const msg = queue.shift();
-      queueBytes -= msg.length;
-      upstream.send(msg, SEND_OPTS);
+      queueBytes -= msg.bytes;
+      sendWS(upstream, msg.data, msg.isBinary);
     }
   });
 
@@ -313,8 +374,8 @@ wss.on('connection', (client, req) => {
     safeClose(1011, 'client error');
   });
 
-  client.on('pong', touch);
-  upstream.on('pong', touch);
+  client.on('pong', () => { lastClientPong = Date.now(); touch(); });
+  upstream.on('pong', () => { lastUpstreamPong = Date.now(); touch(); });
 });
 
 server.listen(process.env.PORT || 10000, '0.0.0.0', () => {
