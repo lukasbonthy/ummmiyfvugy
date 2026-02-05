@@ -1,18 +1,34 @@
 'use strict';
 
 const http = require('http');
-const net = require('net');
-const tls = require('tls');
 const fs = require('fs');
 const path = require('path');
+const tls = require('tls');
 const crypto = require('crypto');
 
 const PORT = process.env.PORT || 10000;
+
+// Your domain WS endpoint:
 const WS_PATH = '/wss';
+
+// Upstream EaglerHost target:
 const UPSTREAM_HOST = 'PromiseLand-CKMC.eagler.host';
 const UPSTREAM_PORT = 443;
-const UPSTREAM_PATH = '/';
+const UPSTREAM_PATH = '/'; // usually '/'
+
+// Static site directory:
 const PUBLIC_DIR = path.join(__dirname, 'public');
+
+// ---- Tunables ----
+const UPSTREAM_HANDSHAKE_TIMEOUT_MS = 15000;
+const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // kill truly idle tunnels
+const SOCKET_KEEPALIVE_MS = 15000;
+
+// ------------------
+
+function log(...args) {
+  console.log(new Date().toISOString(), ...args);
+}
 
 function contentType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -29,6 +45,9 @@ function contentType(filePath) {
     '.svg': 'image/svg+xml',
     '.ico': 'image/x-icon',
     '.txt': 'text/plain; charset=utf-8',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.ttf': 'font/ttf',
   })[ext] || 'application/octet-stream';
 }
 
@@ -41,14 +60,22 @@ function serveStatic(req, res) {
     return;
   }
 
+  // don’t try to serve WS path as a file
   if (urlPathRaw === WS_PATH) {
     res.writeHead(426, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('Upgrade Required');
     return;
   }
 
-  let urlPath = urlPathRaw;
-  try { urlPath = decodeURIComponent(urlPathRaw || '/'); } catch {}
+  let urlPath;
+  try {
+    urlPath = decodeURIComponent(urlPathRaw || '/');
+  } catch {
+    res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('Bad Request');
+    return;
+  }
+
   if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
 
   const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, '');
@@ -77,8 +104,12 @@ function serveStatic(req, res) {
   });
 }
 
-function sha1Base64(s) {
-  return crypto.createHash('sha1').update(s).digest('base64');
+function sha1Base64(bufOrStr) {
+  return crypto.createHash('sha1').update(bufOrStr).digest('base64');
+}
+
+function wsAccept(key) {
+  return sha1Base64(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11');
 }
 
 function writeHttp(socket, statusLine, headers) {
@@ -88,18 +119,21 @@ function writeHttp(socket, statusLine, headers) {
   socket.write(out);
 }
 
-const server = http.createServer(serveStatic);
-
-// keep sockets alive
-server.keepAliveTimeout = 0;
-server.headersTimeout = 0;
-server.on('connection', (sock) => {
+function setSockOptions(sock) {
   try {
     sock.setNoDelay(true);
-    sock.setKeepAlive(true, 15000);
+    sock.setKeepAlive(true, SOCKET_KEEPALIVE_MS);
     sock.setTimeout(0);
   } catch {}
-});
+}
+
+const server = http.createServer(serveStatic);
+
+// avoid node timing out upgraded sockets
+server.keepAliveTimeout = 0;
+server.headersTimeout = 0;
+
+server.on('connection', setSockOptions);
 
 server.on('upgrade', (req, clientSock, head) => {
   const urlPath = (req.url || '').split('?')[0];
@@ -110,96 +144,128 @@ server.on('upgrade', (req, clientSock, head) => {
 
   const key = req.headers['sec-websocket-key'];
   const version = req.headers['sec-websocket-version'];
+
   if (!key || version !== '13') {
     clientSock.end('HTTP/1.1 400 Bad Request\r\n\r\n');
     return;
   }
 
-  // Accept upgrade from the browser
-  const accept = sha1Base64(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11');
+  setSockOptions(clientSock);
+
+  // Upgrade the browser connection immediately
   writeHttp(clientSock, 'HTTP/1.1 101 Switching Protocols', {
-    'Upgrade': 'websocket',
-    'Connection': 'Upgrade',
-    'Sec-WebSocket-Accept': accept,
+    Upgrade: 'websocket',
+    Connection: 'Upgrade',
+    'Sec-WebSocket-Accept': wsAccept(key),
     ...(req.headers['sec-websocket-protocol']
       ? { 'Sec-WebSocket-Protocol': req.headers['sec-websocket-protocol'] }
       : {}),
   });
 
-  // Connect to upstream over TLS and perform WS handshake manually
-  const origin = req.headers['origin'] || 'https://promiselandmc.com';
-  const hostHeader = UPSTREAM_HOST;
+  // Connect to upstream via TLS and do WS handshake
+  const origin = req.headers.origin || 'https://promiselandmc.com';
 
   const upstream = tls.connect({
     host: UPSTREAM_HOST,
     port: UPSTREAM_PORT,
     servername: UPSTREAM_HOST, // SNI
     rejectUnauthorized: true,
-  }, () => {
+  });
+
+  setSockOptions(upstream);
+
+  let done = false;
+  let lastActivity = Date.now();
+
+  const touch = () => { lastActivity = Date.now(); };
+
+  const idleTimer = setInterval(() => {
+    if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) kill('idle timeout');
+  }, 10000);
+
+  const hsTimer = setTimeout(() => {
+    if (!done) kill('upstream handshake timeout');
+  }, UPSTREAM_HANDSHAKE_TIMEOUT_MS);
+
+  function cleanup() {
+    clearInterval(idleTimer);
+    clearTimeout(hsTimer);
+  }
+
+  function kill(reason) {
+    if (done) return;
+    done = true;
+    cleanup();
+    log('[KILL]', reason);
+    try { clientSock.destroy(); } catch {}
+    try { upstream.destroy(); } catch {}
+  }
+
+  clientSock.on('data', touch);
+  upstream.on('data', touch);
+  clientSock.on('error', (e) => kill('client error: ' + (e?.message || e)));
+  upstream.on('error', (e) => kill('upstream error: ' + (e?.message || e)));
+  clientSock.on('close', () => kill('client close'));
+  upstream.on('close', () => kill('upstream close'));
+
+  upstream.once('secureConnect', () => {
+    // Real WS handshake to upstream (don’t try to “ws library” it)
     const upstreamKey = crypto.randomBytes(16).toString('base64');
+
     const lines = [
       `GET ${UPSTREAM_PATH} HTTP/1.1`,
-      `Host: ${hostHeader}`,
-      `Upgrade: websocket`,
-      `Connection: Upgrade`,
-      `Sec-WebSocket-Version: 13`,
+      `Host: ${UPSTREAM_HOST}`,
+      'Upgrade: websocket',
+      'Connection: Upgrade',
+      'Sec-WebSocket-Version: 13',
       `Sec-WebSocket-Key: ${upstreamKey}`,
       `Origin: ${origin}`,
     ];
 
-    // forward subprotocols if any
     if (req.headers['sec-websocket-protocol']) {
       lines.push(`Sec-WebSocket-Protocol: ${req.headers['sec-websocket-protocol']}`);
     }
 
-    // end request
     upstream.write(lines.join('\r\n') + '\r\n\r\n');
+
+    // If there was any buffered head from the browser upgrade, forward it
+    if (head && head.length) upstream.write(head);
   });
 
-  upstream.setNoDelay(true);
-  upstream.setKeepAlive(true, 15000);
-  upstream.setTimeout(0);
-
-  let handshakeBuf = Buffer.alloc(0);
-  let upstreamUpgraded = false;
-
-  const kill = (why) => {
-    try { clientSock.destroy(); } catch {}
-    try { upstream.destroy(); } catch {}
-  };
-
+  // Read upstream response headers first, then start piping raw
+  let hsBuf = Buffer.alloc(0);
   upstream.on('data', (chunk) => {
-    if (upstreamUpgraded) return; // once upgraded, piping takes over
-    handshakeBuf = Buffer.concat([handshakeBuf, chunk]);
+    if (done) return;
 
-    const i = handshakeBuf.indexOf('\r\n\r\n');
-    if (i === -1) return;
+    // Once upgraded, piping takes over (we won't be here)
+    if (upstream._piping) return;
 
-    const headerBlock = handshakeBuf.slice(0, i).toString('utf8');
-    const rest = handshakeBuf.slice(i + 4);
+    hsBuf = Buffer.concat([hsBuf, chunk]);
+    const idx = hsBuf.indexOf('\r\n\r\n');
+    if (idx === -1) return;
 
-    // Basic check: must be 101
-    if (!/^HTTP\/1\.1 101 /i.test(headerBlock)) return kill('upstream handshake failed');
+    const headerBlock = hsBuf.slice(0, idx).toString('utf8');
+    const rest = hsBuf.slice(idx + 4);
 
-    upstreamUpgraded = true;
+    if (!/^HTTP\/1\.1 101 /i.test(headerBlock)) {
+      log('[UPSTREAM BAD HS]', headerBlock.split('\r\n')[0] || headerBlock);
+      return kill('upstream handshake failed');
+    }
 
-    // now raw pipe both directions
+    // Handshake success → pipe both ways
+    upstream._piping = true;
+    clearTimeout(hsTimer);
+
     if (rest.length) clientSock.write(rest);
 
-    // Important: include any buffered 'head' from client (rare but safe)
-    if (head && head.length) upstream.write(head);
-
+    // Start bidirectional pipe
     clientSock.pipe(upstream);
     upstream.pipe(clientSock);
+
+    log('[TUNNEL] open');
   });
-
-  upstream.on('error', () => kill('upstream error'));
-  clientSock.on('error', () => kill('client error'));
-
-  clientSock.on('close', () => kill('client close'));
-  upstream.on('close', () => kill('upstream close'));
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(new Date().toISOString(), `listening on ${PORT} (ws: ${WS_PATH})`);
+  log(`listening on ${PORT} (ws: ${WS_PATH})`);
 });
