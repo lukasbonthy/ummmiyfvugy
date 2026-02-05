@@ -13,18 +13,19 @@ const SPOOF_HOST = 'PromiseLand-CKMC.eagler.host';
 const SPOOF_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36';
 
-// Keepalive (helps prevent Render / middleboxes dropping idle WS)
-const PING_INTERVAL_MS = 8000; // lower = usually less "laggy" feel
-
-// If upstream doesn’t open quickly, kill the attempt
+// Timers
 const UPSTREAM_OPEN_TIMEOUT_MS = 9000;
-
-// If no traffic for too long, kill both sides
 const IDLE_TIMEOUT_MS = 120000;
 
-// Safety limits (prevents memory blowups)
-const MAX_QUEUE_MESSAGES = 8000;
-const MAX_QUEUE_BYTES = 8 * 1024 * 1024; // 8 MB buffered before upstream opens
+// Upstream keepalive only (do NOT ping the browser client)
+const UPSTREAM_PING_INTERVAL_MS = 12000;
+
+// Safety limits
+const MAX_QUEUE_MESSAGES = 12000;
+const MAX_QUEUE_BYTES = 16 * 1024 * 1024; // 16MB before upstream opens
+
+// Backpressure: if either side buffers too much, disconnect (prevents slow desync)
+const MAX_BUFFERED_AMOUNT = 8 * 1024 * 1024; // 8MB
 
 // Static site folder
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -77,17 +78,25 @@ function serveFile(res, filePath) {
   });
 }
 
+function toBuffer(data) {
+  // Force binary end-to-end
+  if (Buffer.isBuffer(data)) return data;
+  if (data instanceof ArrayBuffer) return Buffer.from(data);
+  // ws can pass Uint8Array
+  if (ArrayBuffer.isView(data)) return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  if (typeof data === 'string') return Buffer.from(data, 'utf8');
+  return Buffer.from(String(data), 'utf8');
+}
+
 const server = http.createServer((req, res) => {
   const urlPathRaw = (req.url || '').split('?')[0];
 
-  // Health check
   if (urlPathRaw === '/health') {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('ok\n');
     return;
   }
 
-  // Serve static site
   let urlPath;
   try {
     urlPath = decodeURIComponent(urlPathRaw);
@@ -99,7 +108,6 @@ const server = http.createServer((req, res) => {
 
   if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
 
-  // Prevent path traversal
   const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, '');
   const filePath = path.join(PUBLIC_DIR, safePath);
 
@@ -115,7 +123,6 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    // SPA fallback: serve index.html for unknown routes
     const fallback = path.join(PUBLIC_DIR, 'index.html');
     fs.stat(fallback, (e2, st2) => {
       if (!e2 && st2.isFile()) {
@@ -131,6 +138,8 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocket.Server({
   server,
   perMessageDeflate: false,
+  skipUTF8Validation: true,
+  clientTracking: false,
 });
 
 wss.on('connection', (client, req) => {
@@ -148,15 +157,16 @@ wss.on('connection', (client, req) => {
 
   log('[IN ] client connected', { ip: clientIP, origin: clientOrigin, protocols: clientProtocols });
 
-  // Buffer client messages until upstream is open
-  const queue = [];
-  let queueBytes = 0;
-
   let closed = false;
   let lastActivity = Date.now();
 
+  const queue = [];
+  let queueBytes = 0;
+
   const upstream = new WebSocket(UPSTREAM_URL, {
     perMessageDeflate: false,
+    skipUTF8Validation: true,
+    handshakeTimeout: UPSTREAM_OPEN_TIMEOUT_MS,
     protocol: clientProtocols.length ? clientProtocols : undefined,
     headers: {
       Origin: SPOOF_ORIGIN,
@@ -180,13 +190,6 @@ wss.on('connection', (client, req) => {
     try { upstream.close(code, reason); } catch {}
   }
 
-  const openTimer = setTimeout(() => {
-    if (upstream.readyState !== WebSocket.OPEN) {
-      log('[UP ] open timeout (upstream never opened)', { ip: clientIP });
-      safeClose(1013, 'upstream open timeout');
-    }
-  }, UPSTREAM_OPEN_TIMEOUT_MS);
-
   const idleTimer = setInterval(() => {
     if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
       log('[IDLE] idle timeout', { ip: clientIP });
@@ -194,42 +197,54 @@ wss.on('connection', (client, req) => {
     }
   }, 10000);
 
-  const pingTimer = setInterval(() => {
-    if (client.readyState === WebSocket.OPEN) {
-      try { client.ping(); } catch {}
-    }
+  // Ping upstream only (helps keep Render/CDNs stable)
+  const upstreamPingTimer = setInterval(() => {
     if (upstream.readyState === WebSocket.OPEN) {
       try { upstream.ping(); } catch {}
     }
-  }, PING_INTERVAL_MS);
+  }, UPSTREAM_PING_INTERVAL_MS);
 
   function cleanupTimers() {
-    clearTimeout(openTimer);
     clearInterval(idleTimer);
-    clearInterval(pingTimer);
+    clearInterval(upstreamPingTimer);
   }
 
-  // === IMPORTANT: RAW FRAME PASS-THROUGH (fixes infinite eating / no drops) ===
-  // Do NOT set {binary: isBinary}. Just forward the data as-is.
+  function checkBackpressure() {
+    // If buffers explode, you get “ghost blocks” / inventory desync
+    if (client.bufferedAmount > MAX_BUFFERED_AMOUNT) {
+      log('[BP ] client buffered too much', { ip: clientIP, buffered: client.bufferedAmount });
+      safeClose(1013, 'client backpressure');
+      return false;
+    }
+    if (upstream.bufferedAmount > MAX_BUFFERED_AMOUNT) {
+      log('[BP ] upstream buffered too much', { ip: clientIP, buffered: upstream.bufferedAmount });
+      safeClose(1013, 'upstream backpressure');
+      return false;
+    }
+    return true;
+  }
 
+  // Client -> Upstream
   client.on('message', (data /*, isBinary */) => {
     touch();
+    if (!checkBackpressure()) return;
+
+    const buf = toBuffer(data);
 
     if (upstream.readyState === WebSocket.OPEN) {
-      upstream.send(data, (err) => {
+      // Force binary frame
+      upstream.send(buf, { binary: true }, (err) => {
         if (err) log('[ERR] send to upstream failed', err?.message || err);
       });
       return;
     }
 
     if (upstream.readyState === WebSocket.CONNECTING) {
-      // Buffer until upstream opens (prevents handshake packet loss)
-      const size = typeof data === 'string' ? Buffer.byteLength(data) : (data?.length || 0);
-      queue.push(data);
-      queueBytes += size;
+      queue.push(buf);
+      queueBytes += buf.length;
 
       if (queue.length > MAX_QUEUE_MESSAGES || queueBytes > MAX_QUEUE_BYTES) {
-        log('[WARN] queue overflow, dropping connection', { ip: clientIP, queueLen: queue.length, queueBytes });
+        log('[WARN] queue overflow', { ip: clientIP, queueLen: queue.length, queueBytes });
         safeClose(1009, 'queue overflow');
       }
       return;
@@ -238,26 +253,29 @@ wss.on('connection', (client, req) => {
     safeClose(1011, 'upstream not available');
   });
 
+  // Upstream -> Client
   upstream.on('message', (data /*, isBinary */) => {
     touch();
+    if (!checkBackpressure()) return;
+
+    const buf = toBuffer(data);
+
     if (client.readyState === WebSocket.OPEN) {
-      client.send(data, (err) => {
+      client.send(buf, { binary: true }, (err) => {
         if (err) log('[ERR] send to client failed', err?.message || err);
       });
     }
   });
 
   upstream.on('open', () => {
-    clearTimeout(openTimer);
     log('[UP ] upstream open', { ip: clientIP });
 
-    // Flush queued early packets (handshake + first actions)
+    // Flush queued early packets
     while (queue.length && upstream.readyState === WebSocket.OPEN) {
+      if (!checkBackpressure()) return;
       const msg = queue.shift();
-      if (typeof msg === 'string') queueBytes -= Buffer.byteLength(msg);
-      else queueBytes -= (msg?.length || 0);
-
-      upstream.send(msg);
+      queueBytes -= msg.length;
+      upstream.send(msg, { binary: true });
     }
   });
 
@@ -287,6 +305,7 @@ wss.on('connection', (client, req) => {
 
   client.on('pong', touch);
   upstream.on('pong', touch);
+  upstream.on('ping', touch);
 });
 
 server.listen(process.env.PORT || 10000, '0.0.0.0', () => {
