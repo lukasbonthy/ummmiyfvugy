@@ -10,40 +10,15 @@ const UPSTREAM_URL = 'wss://PromiseLand-CKMC.eagler.host/';
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-const SPOOF_UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36';
-
-// ---- Timeouts ----
 const UPSTREAM_OPEN_TIMEOUT_MS = 15000;
 const IDLE_TIMEOUT_MS = 10 * 60 * 1000;
-const PING_INTERVAL_MS = 12000; // < 15s so something happens before the cutoff
+const PING_INTERVAL_MS = 15000;
 
-// If upstream is using “no application data in X seconds” timers,
-// this sends a tiny noop ONLY when totally idle.
-// Set to 0 to disable.
-const UPSTREAM_NOOP_IF_IDLE_MS = 8000;
-
-// ---- Buffer controls ----
 const PAUSE_AT = 16 * 1024 * 1024;
 const RESUME_AT = 4 * 1024 * 1024;
 const KILL_AT = 64 * 1024 * 1024;
 
-// Queue while upstream connects
 const MAX_QUEUE_BYTES = 32 * 1024 * 1024;
-
-// Browser side compression helps chunk bursts
-const CLIENT_PERMESSAGE_DEFLATE = {
-  threshold: 1024,
-  serverNoContextTakeover: true,
-  clientNoContextTakeover: true,
-};
-
-// Upstream compression sometimes triggers WAF/proxy weirdness.
-// Turn it OFF upstream to look more “normal”.
-const UPSTREAM_PERMESSAGE_DEFLATE = false;
-
-// Retry once if upstream drops quickly (like ~15s)
-const EARLY_CLOSE_RETRY_WINDOW_MS = 45000;
 
 function log(...args) {
   console.log(new Date().toISOString(), ...args);
@@ -93,20 +68,12 @@ function serveFile(res, filePath) {
   });
 }
 
-let openClients = 0;
-
 const server = http.createServer((req, res) => {
   const urlPathRaw = (req.url || '').split('?')[0];
 
   if (urlPathRaw === '/health') {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('ok\n');
-    return;
-  }
-
-  if (urlPathRaw === '/stats') {
-    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ openClients }, null, 2));
     return;
   }
 
@@ -142,9 +109,11 @@ const server = http.createServer((req, res) => {
   });
 });
 
+// Prevent Node from timing out upgraded sockets
 server.keepAliveTimeout = 0;
 server.headersTimeout = 0;
 
+// TCP tuning
 server.on('connection', (sock) => {
   try {
     sock.setNoDelay(true);
@@ -155,19 +124,14 @@ server.on('connection', (sock) => {
 
 const wss = new WebSocket.Server({
   server,
-  perMessageDeflate: CLIENT_PERMESSAGE_DEFLATE,
+  perMessageDeflate: false, // safest for binary protocol passthrough
   maxPayload: 0,
 });
 
 wss.on('connection', (client, req) => {
-  openClients++;
-
-  const clientIP =
-    getHeader(req, 'x-forwarded-for') ||
-    req.socket?.remoteAddress ||
-    'unknown';
-
+  const clientIP = getHeader(req, 'x-forwarded-for') || req.socket?.remoteAddress || 'unknown';
   const clientOrigin = getHeader(req, 'origin') || 'https://promiselandmc.com';
+
   const clientProtocolsRaw = getHeader(req, 'sec-websocket-protocol');
   const clientProtocols = clientProtocolsRaw
     ? clientProtocolsRaw.split(',').map(s => s.trim()).filter(Boolean)
@@ -187,239 +151,144 @@ wss.on('connection', (client, req) => {
   const queue = [];
   let queueBytes = 0;
 
-  let msgsToUp = 0;
-  let msgsToClient = 0;
-  let upstreamOpenedAt = 0;
-  let retryUsed = false;
+  const upstream = new WebSocket(UPSTREAM_URL, {
+    perMessageDeflate: false,
+    handshakeTimeout: UPSTREAM_OPEN_TIMEOUT_MS,
+    protocol: clientProtocols.length ? clientProtocols : undefined,
+    headers: {
+      Origin: clientOrigin,
+      'X-Forwarded-Origin': clientOrigin,
+      'X-Real-IP': clientIP,
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
+  });
 
-  let pausedClientReads = false;
-  let pausedUpstreamReads = false;
-
-  let upstream = null;
-
-  function touch() {
-    lastActivity = Date.now();
-  }
-
-  function cleanupTimers() {
-    clearInterval(idleTimer);
-    clearInterval(pingTimer);
-    clearInterval(bpTimer);
-    clearInterval(noopTimer);
-    clearTimeout(openTimer);
-  }
+  function touch() { lastActivity = Date.now(); }
 
   function safeClose(code = 1000, reason = 'closed') {
     if (closed) return;
     closed = true;
-
-    openClients = Math.max(0, openClients - 1);
-
-    log('[CLS] closing both', { ip: clientIP, code, reason });
-    cleanupTimers();
-
+    log('[CLS] closing', { ip: clientIP, code, reason });
     try { client.close(code, reason); } catch {}
-    try { upstream?.close(code, reason); } catch {}
-
+    try { upstream.close(code, reason); } catch {}
     setTimeout(() => {
       try { client.terminate(); } catch {}
-      try { upstream?.terminate(); } catch {}
+      try { upstream.terminate(); } catch {}
     }, 250);
   }
 
   const openTimer = setTimeout(() => {
-    if (!upstream || upstream.readyState !== WebSocket.OPEN) {
-      log('[UP ] open timeout', { ip: clientIP });
-      safeClose(1013, 'upstream open timeout');
-    }
+    if (upstream.readyState !== WebSocket.OPEN) safeClose(1013, 'upstream open timeout');
   }, UPSTREAM_OPEN_TIMEOUT_MS);
 
   const idleTimer = setInterval(() => {
-    if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
-      log('[IDLE] idle timeout', { ip: clientIP });
-      safeClose(1001, 'idle timeout');
-    }
+    if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) safeClose(1001, 'idle timeout');
   }, 10000);
 
-  function applyBackpressure() {
-    if (!upstream) return;
-    if (client.readyState !== WebSocket.OPEN || upstream.readyState !== WebSocket.OPEN) return;
+  const pingTimer = setInterval(() => {
+    if (client.readyState === WebSocket.OPEN) { try { client.ping(); } catch {} }
+    if (upstream.readyState === WebSocket.OPEN) { try { upstream.ping(); } catch {} }
+  }, PING_INTERVAL_MS);
 
+  let pausedClientReads = false;
+  let pausedUpstreamReads = false;
+
+  function applyBackpressure() {
+    if (client.readyState !== WebSocket.OPEN || upstream.readyState !== WebSocket.OPEN) return;
     const upBuf = upstream.bufferedAmount || 0;
     const clBuf = client.bufferedAmount || 0;
 
-    if (upBuf > KILL_AT || clBuf > KILL_AT) {
-      log('[BP ] KILL buffer overflow', { ip: clientIP, upBuf, clBuf });
-      safeClose(1013, 'buffer overflow');
-      return;
-    }
+    if (upBuf > KILL_AT || clBuf > KILL_AT) return safeClose(1013, 'buffer overflow');
 
     if (!pausedClientReads && upBuf > PAUSE_AT) {
-      pausedClientReads = true;
-      try { client._socket?.pause(); } catch {}
-      log('[BP ] pause client reads', { ip: clientIP, upBuf });
+      pausedClientReads = true; try { client._socket?.pause(); } catch {}
     } else if (pausedClientReads && upBuf < RESUME_AT) {
-      pausedClientReads = false;
-      try { client._socket?.resume(); } catch {}
-      log('[BP ] resume client reads', { ip: clientIP, upBuf });
+      pausedClientReads = false; try { client._socket?.resume(); } catch {}
     }
 
     if (!pausedUpstreamReads && clBuf > PAUSE_AT) {
-      pausedUpstreamReads = true;
-      try { upstream._socket?.pause(); } catch {}
-      log('[BP ] pause upstream reads', { ip: clientIP, clBuf });
+      pausedUpstreamReads = true; try { upstream._socket?.pause(); } catch {}
     } else if (pausedUpstreamReads && clBuf < RESUME_AT) {
-      pausedUpstreamReads = false;
-      try { upstream._socket?.resume(); } catch {}
-      log('[BP ] resume upstream reads', { ip: clientIP, clBuf });
+      pausedUpstreamReads = false; try { upstream._socket?.resume(); } catch {}
     }
   }
 
   const bpTimer = setInterval(applyBackpressure, 50);
 
-  const pingTimer = setInterval(() => {
-    if (client.readyState === WebSocket.OPEN) {
-      try { client.ping(); } catch {}
-    }
-    if (upstream && upstream.readyState === WebSocket.OPEN) {
-      try { upstream.ping(); } catch {}
-    }
-  }, PING_INTERVAL_MS);
-
-  // Optional “idle app-data bump” to defeat dumb 15s app-idle timers
-  const noopTimer = setInterval(() => {
-    if (!UPSTREAM_NOOP_IF_IDLE_MS) return;
-    if (!upstream || upstream.readyState !== WebSocket.OPEN) return;
-
-    const now = Date.now();
-    if (now - lastActivity < UPSTREAM_NOOP_IF_IDLE_MS) return;
-
-    // Send a tiny binary frame. If upstream can't tolerate this, set UPSTREAM_NOOP_IF_IDLE_MS=0.
-    try {
-      upstream.send(Buffer.from([0x00]), { binary: true, compress: false });
-      touch();
-      log('[UP ] sent idle noop', { ip: clientIP });
-    } catch {}
-  }, 1000);
-
-  function makeUpstream() {
-    // IMPORTANT: mirror the real origin. Do NOT spoof to eaglercraft.com.
-    upstream = new WebSocket(UPSTREAM_URL, {
-      perMessageDeflate: UPSTREAM_PERMESSAGE_DEFLATE,
-      handshakeTimeout: UPSTREAM_OPEN_TIMEOUT_MS,
-      protocol: clientProtocols.length ? clientProtocols : undefined,
-      headers: {
-        Origin: clientOrigin,
-        'User-Agent': SPOOF_UA,
-        'X-Forwarded-Origin': clientOrigin,
-        'X-Real-IP': clientIP,
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-      },
-    });
-
-    upstream.on('open', () => {
-      clearTimeout(openTimer);
-      upstreamOpenedAt = Date.now();
-      msgsToUp = 0;
-      msgsToClient = 0;
-
-      log('[UP ] upstream open', { ip: clientIP });
-
-      try {
-        upstream._socket?.setNoDelay(true);
-        upstream._socket?.setKeepAlive(true, 15000);
-        upstream._socket?.setTimeout(0);
-      } catch {}
-
-      while (queue.length && upstream.readyState === WebSocket.OPEN) {
-        const m = queue.shift();
-        queueBytes -= m.size;
-        upstream.send(m.data, { binary: m.isBinary, compress: false });
-      }
-    });
-
-    upstream.on('message', (data, isBinary) => {
-      touch();
-      msgsToClient++;
-
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(data, { binary: isBinary, compress: false });
-      }
-      applyBackpressure();
-    });
-
-    upstream.on('close', (code, reason) => {
-      const lifeMs = Date.now() - (upstreamOpenedAt || Date.now());
-      log('[UP ] upstream close', {
-        ip: clientIP,
-        code,
-        reason: reason?.toString?.() || '',
-        lifeMs,
-        msgsToUp,
-        msgsToClient,
-      });
-
-      // Retry once if it dies quickly (exact 15s patterns)
-      if (!closed && !retryUsed && lifeMs < EARLY_CLOSE_RETRY_WINDOW_MS) {
-        retryUsed = true;
-        log('[UP ] retrying upstream once', { ip: clientIP, lifeMs });
-        try { upstream.terminate(); } catch {}
-        makeUpstream();
-        return;
-      }
-
-      safeClose(code || 1000, 'upstream closed');
-    });
-
-    upstream.on('error', (err) => {
-      log('[UP ] upstream error', { ip: clientIP, err: err?.message || err });
-    });
-
-    upstream.on('pong', touch);
+  function cleanup() {
+    clearTimeout(openTimer);
+    clearInterval(idleTimer);
+    clearInterval(pingTimer);
+    clearInterval(bpTimer);
   }
 
-  makeUpstream();
+  upstream.on('open', () => {
+    clearTimeout(openTimer);
+    log('[UP ] upstream open', { ip: clientIP });
+
+    try {
+      upstream._socket?.setNoDelay(true);
+      upstream._socket?.setKeepAlive(true, 15000);
+      upstream._socket?.setTimeout(0);
+    } catch {}
+
+    while (queue.length && upstream.readyState === WebSocket.OPEN) {
+      const m = queue.shift();
+      queueBytes -= m.size;
+      upstream.send(m.data, { binary: m.isBinary, compress: false });
+    }
+  });
 
   client.on('message', (data, isBinary) => {
     touch();
-    msgsToUp++;
-
-    if (upstream && upstream.readyState === WebSocket.OPEN) {
+    if (upstream.readyState === WebSocket.OPEN) {
       upstream.send(data, { binary: isBinary, compress: false });
-    } else if (upstream && upstream.readyState === WebSocket.CONNECTING) {
-      const size =
-        typeof data === 'string'
-          ? Buffer.byteLength(data)
-          : (data?.length ?? 0);
-
+    } else if (upstream.readyState === WebSocket.CONNECTING) {
+      const size = typeof data === 'string' ? Buffer.byteLength(data) : (data?.length ?? 0);
       queue.push({ data, isBinary, size });
       queueBytes += size;
-
-      if (queueBytes > MAX_QUEUE_BYTES) {
-        log('[WARN] queue overflow', { ip: clientIP, queueBytes });
-        safeClose(1009, 'queue overflow');
-        return;
-      }
+      if (queueBytes > MAX_QUEUE_BYTES) return safeClose(1009, 'queue overflow');
     } else {
       safeClose(1011, 'upstream not available');
-      return;
     }
-
     applyBackpressure();
+  });
+
+  upstream.on('message', (data, isBinary) => {
+    touch();
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data, { binary: isBinary, compress: false });
+    }
+    applyBackpressure();
+  });
+
+  upstream.on('close', (code, reason) => {
+    log('[UP ] upstream close', { ip: clientIP, code, reason: reason?.toString?.() || '' });
+    cleanup();
+    safeClose(code || 1000, 'upstream closed');
   });
 
   client.on('close', (code, reason) => {
     log('[IN ] client close', { ip: clientIP, code, reason: reason?.toString?.() || '' });
+    cleanup();
     safeClose(code || 1000, 'client closed');
+  });
+
+  upstream.on('error', (err) => {
+    log('[UP ] upstream error', { ip: clientIP, err: err?.message || err });
+    cleanup();
+    safeClose(1011, 'upstream error');
   });
 
   client.on('error', (err) => {
     log('[IN ] client error', { ip: clientIP, err: err?.message || err });
+    cleanup();
     safeClose(1011, 'client error');
   });
 
   client.on('pong', touch);
+  upstream.on('pong', touch);
 });
 
 server.listen(PORT, '0.0.0.0', () => {
