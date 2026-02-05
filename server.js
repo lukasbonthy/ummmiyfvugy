@@ -6,12 +6,12 @@ const path = require('path');
 const WebSocket = require('ws');
 
 const PORT = process.env.PORT || 10000;
-
-// Your upstream EaglerHost WSS:
 const UPSTREAM_URL = 'wss://PromiseLand-CKMC.eagler.host/';
-
-// Serve files from ./public
 const PUBLIC_DIR = path.join(__dirname, 'public');
+
+function log(...a) {
+  console.log(new Date().toISOString(), ...a);
+}
 
 function contentType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -54,7 +54,6 @@ function serveStatic(req, res) {
 
   const filePath = path.join(PUBLIC_DIR, safePath);
 
-  // Prevent directory traversal
   if (!filePath.startsWith(PUBLIC_DIR)) {
     res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('Forbidden');
@@ -71,7 +70,7 @@ function serveStatic(req, res) {
       }
       res.writeHead(200, {
         'content-type': contentType(chosen),
-        'cache-control': chosen.endsWith('.html') ? 'no-cache' : 'public, max-age=86400'
+        'cache-control': chosen.endsWith('.html') ? 'no-cache' : 'public, max-age=86400',
       });
       res.end(data);
     });
@@ -80,72 +79,91 @@ function serveStatic(req, res) {
 
 const server = http.createServer(serveStatic);
 
-// Don’t let Node kill upgraded sockets
-server.keepAliveTimeout = 0;
-server.headersTimeout = 0;
+// WS server
+const wss = new WebSocket.Server({ noServer: true, perMessageDeflate: false, maxPayload: 0 });
 
-const wss = new WebSocket.Server({ noServer: true, perMessageDeflate: false });
-
+// IMPORTANT: WS upgrades happen BEFORE HTTP routing. This allows "/" to serve HTML normally.
 server.on('upgrade', (req, socket, head) => {
-  // IMPORTANT: we accept WS on "/" (and also "/?something")
+  const upgrade = (req.headers.upgrade || '').toLowerCase();
+  if (upgrade !== 'websocket') {
+    socket.destroy();
+    return;
+  }
+
+  // We allow WS on "/" (and "/?anything")
   const urlPath = (req.url || '').split('?')[0];
+  if (urlPath !== '/') {
+    // If you truly want WS ONLY on "/", keep this.
+    // If your client uses another path, remove this check.
+    socket.destroy();
+    return;
+  }
 
-  // If you ONLY want WS at "/", enforce it:
-  // if (urlPath !== '/') { socket.destroy(); return; }
-
-  // Accept upgrades on any path (safer if the client sends slight variations)
   wss.handleUpgrade(req, socket, head, (ws) => {
     wss.emit('connection', ws, req);
   });
 });
 
 wss.on('connection', (client, req) => {
-  // Forward Sec-WebSocket-Protocol EXACTLY (this is a common “no MOTD” cause)
+  const ip =
+    (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() ||
+    req.socket.remoteAddress ||
+    'unknown';
+
+  // Preserve subprotocols (this matters for Eagler ping/MOTD)
   const protoHeader = req.headers['sec-websocket-protocol'];
   const protocols = protoHeader
     ? protoHeader.split(',').map(s => s.trim()).filter(Boolean)
     : undefined;
 
-  const origin = req.headers.origin || 'https://promiselandmc.com';
+  log('[IN ] ws connect', { ip, path: req.url, protocols });
 
+  // KEY FIX: DO NOT forward/mirror Origin. Let Node connect "server-to-server".
   const upstream = new WebSocket(UPSTREAM_URL, protocols, {
     perMessageDeflate: false,
-    headers: {
-      Origin: origin
-    }
+    handshakeTimeout: 15000,
+    // no headers here on purpose
   });
 
-  const closeBoth = (code = 1000, reason = '') => {
-    try { client.close(code, reason); } catch {}
-    try { upstream.close(code, reason); } catch {}
-    setTimeout(() => {
-      try { client.terminate(); } catch {}
-      try { upstream.terminate(); } catch {}
-    }, 200);
+  const kill = (why) => {
+    try { client.terminate(); } catch {}
+    try { upstream.terminate(); } catch {}
+    log('[CLS]', { ip, why });
   };
 
   upstream.on('open', () => {
-    // Pipe both directions
+    log('[UP ] open', { ip });
+
     client.on('message', (data, isBinary) => {
-      if (upstream.readyState === WebSocket.OPEN) {
-        upstream.send(data, { binary: isBinary });
-      }
+      if (upstream.readyState === WebSocket.OPEN) upstream.send(data, { binary: isBinary });
     });
 
     upstream.on('message', (data, isBinary) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(data, { binary: isBinary });
-      }
+      if (client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary });
     });
   });
 
-  upstream.on('close', (c, r) => closeBoth(c || 1000, r?.toString?.() || 'upstream closed'));
-  client.on('close', (c, r) => closeBoth(c || 1000, r?.toString?.() || 'client closed'));
+  upstream.on('close', (code, reason) => {
+    log('[UP ] close', { ip, code, reason: reason?.toString?.() || '' });
+    kill('upstream closed');
+  });
 
-  upstream.on('error', () => closeBoth(1011, 'upstream error'));
-  client.on('error', () => closeBoth(1011, 'client error'));
+  client.on('close', (code, reason) => {
+    log('[IN ] close', { ip, code, reason: reason?.toString?.() || '' });
+    kill('client closed');
+  });
+
+  upstream.on('error', (err) => {
+    log('[UP ] error', { ip, err: err?.message || String(err) });
+    kill('upstream error');
+  });
+
+  client.on('error', (err) => {
+    log('[IN ] error', { ip, err: err?.message || String(err) });
+    kill('client error');
+  });
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`listening on ${PORT} (HTTP on /, WS upgrade on /)`);
+  log(`listening on ${PORT} (HTTP on /, WSS on /)`);
 });
