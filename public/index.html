@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,699 +5,161 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PromiseLand-CKMC | Minecraft Portal</title>
 
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            outfit: ["Outfit", "ui-sans-serif", "system-ui", "Segoe UI", "Roboto", "Arial", "sans-serif"]
+          },
+          colors: {
+            ink: "#070710",
+            ink2: "#0b0b16",
+            brand: "#9d4edd",
+            brand2: "#7b2cbf",
+            gold: "#ffd400"
+          },
+          boxShadow: {
+            glow: "0 0 35px rgba(157,78,221,.25)",
+            soft: "0 16px 44px rgba(0,0,0,.55)"
+          }
+        }
+      }
+    }
+  </script>
+
   <!-- Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
   <!-- Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 
   <style>
-    :root{
-      --bg0:#070710;
-      --bg1:#0b0b16;
-      --card: rgba(18, 18, 34, .82);
-      --card2: rgba(24, 24, 46, .72);
-      --stroke: rgba(157, 78, 221, .26);
-      --stroke2: rgba(157, 78, 221, .45);
-
-      --primary:#9d4edd;
-      --primary2:#7b2cbf;
-      --accent:#ffd400;
-
-      --text:#eaeaff;
-      --muted:rgba(234,234,255,.78);
-
-      --radius: 18px;
-      --shadow: 0 16px 44px rgba(0,0,0,.55);
-      --shadow2: 0 10px 30px rgba(0,0,0,.35);
-
-      --ease: cubic-bezier(.16,.84,.22,1);
-    }
-
-    *{ box-sizing:border-box; margin:0; padding:0; }
-    html,body{ height:100%; }
-    body{
-      font-family: "Outfit", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(1000px 700px at 10% 10%, rgba(157,78,221,.18), transparent 55%),
-        radial-gradient(900px 650px at 90% 85%, rgba(123,44,191,.16), transparent 55%),
-        linear-gradient(180deg, var(--bg0), var(--bg1));
-      overflow-x:hidden;
-    }
-
-    /* ===== Top bar ===== */
-    .topbar{
-      position: sticky;
-      top:0;
-      z-index: 50;
+    /* tiny extras Tailwind doesn't cover nicely */
+    .glass {
+      background: linear-gradient(135deg, rgba(157,78,221,.14), rgba(0,0,0,.10)), rgba(18,18,34,.82);
+      border: 1px solid rgba(157,78,221,.25);
       backdrop-filter: blur(10px);
-      background: linear-gradient(180deg, rgba(7,7,16,.9), rgba(7,7,16,.62));
-      border-bottom: 1px solid rgba(157,78,221,.20);
     }
-    .topbar-inner{
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 14px 18px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap: 14px;
-    }
-    .brand{
-      display:flex;
-      align-items:center;
-      gap: 12px;
-      min-width: 220px;
-    }
-    .brand-badge{
-      width: 44px;
-      height: 44px;
-      border-radius: 14px;
-      background:
-        radial-gradient(14px 14px at 30% 30%, rgba(255,255,255,.35), transparent 60%),
-        linear-gradient(135deg, var(--primary), var(--primary2));
-      box-shadow: 0 10px 26px rgba(157,78,221,.30);
-      border: 1px solid rgba(255,255,255,.14);
-      display:grid;
-      place-items:center;
-      flex: 0 0 auto;
-    }
-    .brand-badge i{ color:white; font-size: 18px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.4)); }
-    .brand-title{ line-height: 1.1; }
-    .brand-title .name{
-      font-weight: 800;
-      letter-spacing: .6px;
-      font-size: 1.15rem;
-    }
-    .brand-title .sub{
-      font-size: .95rem;
-      color: var(--muted);
-      margin-top: 2px;
-    }
-
-    .social{
-      display:flex;
-      align-items:center;
-      gap: 10px;
-    }
-    .iconbtn{
-      width: 42px;
-      height: 42px;
-      border-radius: 999px;
-      display:grid;
-      place-items:center;
-      background: rgba(157,78,221,.10);
-      border: 1px solid rgba(157,78,221,.22);
-      color: var(--text);
-      text-decoration:none;
-      transition: transform .2s var(--ease), background .2s var(--ease), border-color .2s var(--ease);
-      box-shadow: 0 8px 18px rgba(0,0,0,.25);
-    }
-    .iconbtn:hover{
-      transform: translateY(-2px);
-      background: rgba(157,78,221,.22);
-      border-color: rgba(157,78,221,.40);
-    }
-    .iconbtn:focus-visible{
-      outline: 3px solid rgba(255, 212, 0, .55);
-      outline-offset: 2px;
-    }
-
-    /* ===== Layout ===== */
-    .wrap{
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 28px 18px 80px;
-    }
-
-    .hero{
-      position: relative;
-      overflow:hidden;
-      border-radius: var(--radius);
-      background: linear-gradient(135deg, rgba(157,78,221,.18), rgba(123,44,191,.08)) , var(--card);
-      border: 1px solid var(--stroke);
-      box-shadow: var(--shadow);
-      padding: 34px 22px;
-    }
-    .hero-grid{
-      display:grid;
-      grid-template-columns: 1.3fr .9fr;
-      gap: 22px;
-      align-items:center;
-    }
-    .kicker{
-      display:inline-flex;
-      align-items:center;
-      gap: 10px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: rgba(255,255,255,.06);
-      border: 1px solid rgba(255,255,255,.12);
-      color: var(--muted);
-      font-weight: 600;
-      letter-spacing: .4px;
-      width: fit-content;
-    }
-    .kicker i{ color: rgba(255,212,0,.95); }
-    .hero h1{
-      font-size: clamp(2rem, 4vw, 3.2rem);
-      letter-spacing: .6px;
-      margin: 12px 0 10px;
-      line-height: 1.05;
-      background: linear-gradient(90deg, #f2e9ff, #c77dff, #9d4edd);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      text-shadow: 0 0 22px rgba(157,78,221,.18);
-      font-weight: 900;
-    }
-    .hero p{
-      color: var(--muted);
-      font-size: 1.05rem;
-      max-width: 70ch;
-      margin-bottom: 18px;
-    }
-
-    .quickcard{
-      border-radius: 18px;
+    .glass2 {
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
       border: 1px solid rgba(255,255,255,.14);
-      padding: 16px;
-      box-shadow: var(--shadow2);
+      backdrop-filter: blur(10px);
     }
-    .quickrow{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap: 12px;
-      padding: 10px 10px;
-      border-radius: 14px;
-      background: rgba(0,0,0,.22);
-      border: 1px solid rgba(157,78,221,.15);
-      margin-top: 10px;
-    }
-    .quickrow:first-child{ margin-top: 0; }
-    .quickrow .label{
-      color: rgba(234,234,255,.72);
-      font-weight: 600;
-      font-size: .95rem;
-      display:flex;
-      align-items:center;
-      gap: 8px;
-    }
-    .quickrow .value{
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: .98rem;
-      color: var(--text);
-      display:flex;
-      align-items:center;
-      gap: 10px;
-    }
-    .pill{
-      display:inline-flex;
-      align-items:center;
-      gap: 8px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(157,78,221,.16);
-      border: 1px solid rgba(157,78,221,.30);
-      color: var(--text);
-      font-weight: 700;
-      font-size: .9rem;
-      white-space: nowrap;
-    }
-    .copybtn{
-      border: 1px solid rgba(255,255,255,.16);
-      background: rgba(255,255,255,.06);
-      color: var(--text);
-      border-radius: 12px;
-      padding: 8px 10px;
-      cursor:pointer;
-      transition: transform .2s var(--ease), background .2s var(--ease);
-      display:inline-flex;
-      align-items:center;
-      gap: 8px;
-      font-weight: 700;
-    }
-    .copybtn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.10); }
-    .copybtn:focus-visible{ outline: 3px solid rgba(255,212,0,.55); outline-offset: 2px; }
-
-    /* ===== Sections ===== */
-    .section{
-      margin-top: 26px;
-      background: var(--card);
-      border: 1px solid var(--stroke);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow2);
-      padding: 22px;
-    }
-    .section-head{
-      display:flex;
-      align-items:flex-end;
-      justify-content:space-between;
-      gap: 12px;
-      margin-bottom: 14px;
-    }
-    .section h2{
-      font-size: 1.45rem;
-      font-weight: 900;
-      letter-spacing: .4px;
-      display:flex;
-      align-items:center;
-      gap: 10px;
-    }
-    .section h2 i{ color: var(--primary); }
-    .section .desc{
-      color: var(--muted);
-      font-size: 1rem;
-      margin-top: 6px;
-    }
-
-    /* ===== Portal buttons ===== */
-    .portal-grid{
-      display:grid;
-      grid-template-columns: repeat(2, minmax(0,1fr));
-      gap: 14px;
-      margin-top: 12px;
-    }
-    .portalbtn{
-      position: relative;
-      overflow:hidden;
-      border-radius: 18px;
-      border: 1px solid rgba(255,255,255,.14);
-      background:
-        radial-gradient(120px 80px at 20% 15%, rgba(255,255,255,.15), transparent 60%),
-        linear-gradient(135deg, rgba(157,78,221,.95), rgba(123,44,191,.92));
-      color: white;
-      padding: 18px 16px;
-      cursor: pointer;
-      transition: transform .22s var(--ease), box-shadow .22s var(--ease), filter .22s var(--ease);
-      box-shadow: 0 14px 40px rgba(123,44,191,.24);
-      text-align:left;
-      min-height: 92px;
-      display:flex;
-      gap: 14px;
-      align-items:center;
-    }
-    .portalbtn:hover{
-      transform: translateY(-3px);
-      box-shadow: 0 18px 55px rgba(157,78,221,.32);
-      filter: saturate(1.05);
-    }
-    .portalbtn:focus-visible{ outline: 3px solid rgba(255,212,0,.65); outline-offset: 2px; }
-    .portalicon{
-      width: 46px;
-      height: 46px;
-      border-radius: 16px;
-      background: rgba(255,255,255,.18);
-      border: 1px solid rgba(255,255,255,.20);
-      display:grid;
-      place-items:center;
-      flex: 0 0 auto;
-    }
-    .portalicon i{ font-size: 1.2rem; filter: drop-shadow(0 2px 8px rgba(0,0,0,.3)); }
-    .portaltitle{
-      font-weight: 900;
-      letter-spacing: .6px;
-      text-transform: uppercase;
-      font-size: 1.05rem;
-      line-height: 1.1;
-    }
-    .portalsub{
-      color: rgba(255,255,255,.85);
-      font-size: .95rem;
-      margin-top: 4px;
-    }
-    .versiontag{
-      position:absolute;
-      top: 12px;
-      right: 12px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(0,0,0,.25);
-      border: 1px solid rgba(255,255,255,.22);
-      font-weight: 900;
-      letter-spacing: .4px;
-      font-size: .85rem;
-    }
-
-    .actions-row{
-      display:flex;
-      flex-wrap:wrap;
-      gap: 10px;
-      margin-top: 14px;
-    }
-    .ghostbtn{
-      border-radius: 14px;
-      background: rgba(157,78,221,.10);
-      border: 1px solid rgba(157,78,221,.26);
-      color: var(--text);
-      padding: 12px 14px;
-      cursor: pointer;
-      transition: transform .2s var(--ease), background .2s var(--ease), border-color .2s var(--ease);
-      display:inline-flex;
-      align-items:center;
-      gap: 10px;
-      font-weight: 800;
-    }
-    .ghostbtn:hover{
-      transform: translateY(-2px);
-      background: rgba(157,78,221,.18);
-      border-color: rgba(157,78,221,.38);
-    }
-    .ghostbtn:focus-visible{ outline: 3px solid rgba(255,212,0,.55); outline-offset: 2px; }
-
-    /* ===== Features ===== */
-    .grid{
-      display:grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap: 12px;
-      margin-top: 12px;
-    }
-    .card{
-      background: var(--card2);
-      border: 1px solid rgba(157,78,221,.18);
-      border-radius: 16px;
-      padding: 16px;
-      transition: transform .22s var(--ease), border-color .22s var(--ease), background .22s var(--ease);
-      min-height: 120px;
-    }
-    .card:hover{
-      transform: translateY(-3px);
-      border-color: rgba(157,78,221,.40);
-      background: rgba(24,24,46,.86);
-    }
-    .card i{ font-size: 1.4rem; color: var(--primary); }
-    .card h3{
-      margin-top: 10px;
-      font-size: 1.05rem;
-      font-weight: 900;
-      letter-spacing: .2px;
-    }
-    .card p{
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: .98rem;
-    }
-
-    /* ===== Gallery ===== */
-    .gallery{
-      display:grid;
-      grid-template-columns: repeat(2, minmax(0,1fr));
-      gap: 12px;
-      margin-top: 12px;
-    }
-    .shot{
-      border-radius: 16px;
-      overflow:hidden;
-      border: 1px solid rgba(255,255,255,.10);
-      background: rgba(0,0,0,.22);
-      box-shadow: 0 12px 30px rgba(0,0,0,.30);
-      position: relative;
-      aspect-ratio: 16 / 9;
-    }
-    .shot img{
-      width:100%;
-      height:100%;
-      object-fit: cover;
-      display:block;
-      transform: scale(1.02);
-      transition: transform .35s var(--ease);
-    }
-    .shot:hover img{ transform: scale(1.06); }
-    .shot .cap{
-      position:absolute;
-      left: 12px;
-      bottom: 12px;
-      padding: 8px 10px;
-      border-radius: 12px;
-      background: rgba(0,0,0,.45);
-      border: 1px solid rgba(255,255,255,.14);
-      font-weight: 900;
-      letter-spacing: .3px;
-      font-size: .9rem;
-    }
-
-    /* ===== Footer ===== */
-    footer{
-      margin-top: 28px;
-      padding: 26px 18px;
-      border-top: 1px solid rgba(157,78,221,.22);
-      color: rgba(234,234,255,.78);
-      background: linear-gradient(180deg, rgba(7,7,16,.2), rgba(7,7,16,.7));
-    }
-    .foot{
-      max-width: 1200px;
-      margin:0 auto;
-      display:flex;
-      flex-wrap:wrap;
-      gap: 14px;
-      align-items:center;
-      justify-content:space-between;
-    }
-    .discord{
-      text-decoration:none;
-      color:white;
-      font-weight: 900;
-      letter-spacing:.3px;
-      display:inline-flex;
-      align-items:center;
-      gap: 10px;
-      padding: 12px 14px;
-      border-radius: 14px;
-      background: linear-gradient(90deg, #5865F2, #7289DA);
-      border: 1px solid rgba(255,255,255,.14);
-      box-shadow: 0 14px 35px rgba(88,101,242,.22);
-      transition: transform .2s var(--ease);
-    }
-    .discord:hover{ transform: translateY(-2px); }
-
-    /* ===== Modal ===== */
-    .modal{
-      position: fixed;
-      inset: 0;
-      display:none;
-      place-items:center;
-      background: rgba(0,0,0,.72);
-      z-index: 999;
-      padding: 20px;
-    }
-    .modal[data-open="true"]{ display:grid; }
-    .modal-card{
-      width:min(920px, 100%);
-      border-radius: 22px;
-      border: 1px solid rgba(157,78,221,.35);
-      background: linear-gradient(135deg, rgba(157,78,221,.10), rgba(0,0,0,.15)), rgba(18,18,34,.92);
-      box-shadow: var(--shadow);
-      padding: 18px;
-      position:relative;
-    }
-    .modal-top{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap: 10px;
-      padding: 10px 8px 14px;
-    }
-    .modal-top h3{
-      font-size: 1.25rem;
-      font-weight: 900;
-      display:flex;
-      align-items:center;
-      gap: 10px;
-    }
-    .close{
-      background: rgba(255,255,255,.06);
-      border: 1px solid rgba(255,255,255,.12);
-      color: var(--text);
-      width: 42px;
-      height: 42px;
-      border-radius: 14px;
-      cursor:pointer;
-      transition: transform .18s var(--ease), background .18s var(--ease);
-      display:grid;
-      place-items:center;
-    }
-    .close:hover{ transform: translateY(-1px); background: rgba(255,255,255,.10); }
-    .modal-grid{
-      display:grid;
-      grid-template-columns: 1.1fr .9fr;
-      gap: 14px;
-      padding: 8px;
-    }
-    .steps{
-      background: rgba(0,0,0,.18);
-      border: 1px solid rgba(157,78,221,.18);
-      border-radius: 18px;
-      padding: 14px;
-    }
-    .steps ol{
-      padding-left: 18px;
-      margin-top: 8px;
-      color: rgba(234,234,255,.86);
-      line-height: 1.75;
-    }
-    .steps li{ margin: 6px 0; }
-    .mono{
-      margin-top: 12px;
-      padding: 12px 12px;
-      border-radius: 16px;
-      border: 1px solid rgba(255,255,255,.12);
-      background: rgba(0,0,0,.28);
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap: 10px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-weight: 900;
-    }
-    .viz{
-      background: rgba(0,0,0,.18);
-      border: 1px solid rgba(157,78,221,.18);
-      border-radius: 18px;
-      padding: 14px;
-    }
-    .vizgrid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .vizgrid img{
-      width:100%;
-      border-radius: 14px;
-      border: 1px solid rgba(255,255,255,.12);
-      display:block;
-    }
-    .modal-note{
-      color: var(--muted);
-      text-align:center;
-      padding: 10px 10px 6px;
-    }
-
-    /* Toast */
-    .toast{
-      position: fixed;
-      left: 50%;
-      bottom: 18px;
-      transform: translateX(-50%) translateY(12px);
-      background: rgba(0,0,0,.78);
-      border: 1px solid rgba(255,255,255,.16);
-      color: var(--text);
-      padding: 10px 12px;
-      border-radius: 999px;
-      box-shadow: 0 16px 40px rgba(0,0,0,.45);
-      opacity: 0;
-      pointer-events:none;
-      transition: opacity .2s var(--ease), transform .2s var(--ease);
-      display:flex;
-      align-items:center;
-      gap: 10px;
-      z-index: 1000;
-      font-weight: 800;
-    }
-    .toast.show{
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
-    .dot{
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 16px rgba(255,212,0,.35);
-    }
-
-    /* ===== Responsive ===== */
-    @media (max-width: 980px){
-      .hero-grid{ grid-template-columns: 1fr; }
-      .grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
-      .gallery{ grid-template-columns: 1fr; }
-      .portal-grid{ grid-template-columns: 1fr; }
-      .modal-grid{ grid-template-columns: 1fr; }
-    }
-    @media (max-width: 520px){
-      .brand{ min-width: unset; }
-      .grid{ grid-template-columns: 1fr; }
-    }
-
-    @media (prefers-reduced-motion: reduce){
-      *{ transition: none !important; animation: none !important; scroll-behavior: auto !important; }
-      .shot img{ transform:none !important; }
+    .focus-ring:focus-visible{
+      outline: 3px solid rgba(255, 212, 0, .55);
+      outline-offset: 2px;
     }
   </style>
 </head>
 
-<body>
+<body class="font-outfit text-white min-h-screen overflow-x-hidden bg-[radial-gradient(1000px_700px_at_10%_10%,rgba(157,78,221,.18),transparent_55%),radial-gradient(900px_650px_at_90%_85%,rgba(123,44,191,.16),transparent_55%),linear-gradient(180deg,#070710,#0b0b16)]">
+
   <!-- Topbar -->
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div class="brand">
-        <div class="brand-badge" aria-hidden="true"><i class="fa-solid fa-cross"></i></div>
-        <div class="brand-title">
-          <div class="name">PromiseLand-CKMC</div>
-          <div class="sub">Minecraft Portal</div>
+  <header class="sticky top-0 z-50 border-b border-[rgba(157,78,221,.20)] bg-[linear-gradient(180deg,rgba(7,7,16,.90),rgba(7,7,16,.62))] backdrop-blur">
+    <div class="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl grid place-items-center border border-white/15 shadow-glow
+                    bg-[radial-gradient(14px_14px_at_30%_30%,rgba(255,255,255,.35),transparent_60%),linear-gradient(135deg,#9d4edd,#7b2cbf)]">
+          <i class="fa-solid fa-cross text-white drop-shadow"></i>
+        </div>
+        <div class="leading-tight">
+          <div class="font-black tracking-wide text-lg">PromiseLand-CKMC</div>
+          <div class="text-white/70 -mt-0.5">Minecraft Portal</div>
         </div>
       </div>
 
-      <nav class="social" aria-label="Social links">
-        <!-- If you don’t have these, you can delete them or set in JS -->
-        <a class="iconbtn" id="discordLink" href="#" target="_blank" rel="noopener" title="Discord">
+      <nav class="flex items-center gap-2" aria-label="Social links">
+        <a id="discordLink" href="#" target="_blank" rel="noopener"
+           class="focus-ring w-11 h-11 rounded-full grid place-items-center border border-[rgba(157,78,221,.22)] bg-[rgba(157,78,221,.10)] shadow-lg hover:-translate-y-0.5 hover:bg-[rgba(157,78,221,.20)] transition">
           <i class="fa-brands fa-discord"></i>
         </a>
-        <a class="iconbtn" id="youtubeLink" href="#" target="_blank" rel="noopener" title="YouTube">
+        <a id="youtubeLink" href="#" target="_blank" rel="noopener"
+           class="focus-ring w-11 h-11 rounded-full grid place-items-center border border-[rgba(157,78,221,.22)] bg-[rgba(157,78,221,.10)] shadow-lg hover:-translate-y-0.5 hover:bg-[rgba(157,78,221,.20)] transition">
           <i class="fa-brands fa-youtube"></i>
         </a>
       </nav>
     </div>
   </header>
 
-  <main class="wrap">
+  <main class="mx-auto max-w-6xl px-4 py-7 pb-20">
+
     <!-- HERO -->
-    <section class="hero" aria-label="PromiseLand-CKMC hero">
-      <div class="hero-grid">
-        <div>
-          <div class="kicker"><i class="fa-solid fa-dove"></i> Chill • Jesus-centered • Community</div>
-          <h1>FUN, FRIENDSHIP, & FAITH</h1>
-          <p>
+    <section class="glass rounded-3xl shadow-soft overflow-hidden p-6 md:p-8">
+      <div class="grid md:grid-cols-5 gap-6 items-center">
+        <div class="md:col-span-3">
+          <div class="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-white/15 bg-white/5 text-white/75 font-semibold tracking-wide">
+            <i class="fa-solid fa-dove text-gold"></i>
+            Chill • Jesus-centered • Community
+          </div>
+
+          <h1 class="mt-4 font-black tracking-wide leading-[1.02] text-4xl md:text-5xl lg:text-6xl
+                     text-transparent bg-clip-text bg-gradient-to-r from-[#f2e9ff] via-[#c77dff] to-[#9d4edd] drop-shadow">
+            FUN, FRIENDSHIP, & FAITH
+          </h1>
+
+          <p class="mt-3 text-white/75 text-base md:text-lg max-w-2xl">
             A chill, Jesus-centered Minecraft community focused on fun, friendship, and faith.
             Join through the portal, add the server, and come hang out.
           </p>
 
-          <div class="actions-row">
-            <button class="ghostbtn" id="openInstructions">
+          <div class="mt-5 flex flex-wrap gap-3">
+            <button id="openInstructions"
+              class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
+                     border border-[rgba(157,78,221,.28)] bg-[rgba(157,78,221,.10)]
+                     hover:bg-[rgba(157,78,221,.18)] hover:-translate-y-0.5 transition">
               <i class="fa-solid fa-plug"></i> Connection Instructions
             </button>
-            <button class="ghostbtn" id="copyIPTop">
+            <button id="copyIPTop"
+              class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
+                     border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition">
               <i class="fa-regular fa-copy"></i> Copy Server Address
             </button>
           </div>
         </div>
 
         <!-- Quick info card -->
-        <aside class="quickcard" aria-label="Server quick info">
-          <div class="quickrow">
-            <div class="label"><i class="fa-solid fa-globe"></i> Server Address</div>
-            <div class="value">
-              <span id="serverAddrText">wss://PromiseLand-CKMC.eagler.host</span>
-              <button class="copybtn" id="copyIP">
-                <i class="fa-regular fa-copy"></i> Copy
-              </button>
+        <aside class="md:col-span-2 glass2 rounded-3xl p-4 md:p-5 shadow-lg">
+          <div class="space-y-3">
+            <div class="rounded-2xl border border-[rgba(157,78,221,.16)] bg-black/25 p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div class="text-white/70 font-semibold flex items-center gap-2">
+                  <i class="fa-solid fa-globe text-brand"></i> Server Address
+                </div>
+              </div>
+
+              <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+                <span id="serverAddrText" class="font-mono font-bold text-sm md:text-base break-all">
+                  wss://PromiseLand-CKMC.eagler.host
+                </span>
+                <button id="copyIP"
+                  class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold
+                         border border-white/15 bg-white/5 hover:bg-white/10 transition">
+                  <i class="fa-regular fa-copy"></i> Copy
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div class="quickrow">
-            <div class="label"><i class="fa-solid fa-code-branch"></i> Client Version</div>
-            <div class="value"><span class="pill" id="serverVersionPill">1.8.8</span></div>
-          </div>
+            <div class="rounded-2xl border border-[rgba(157,78,221,.16)] bg-black/25 p-4 flex items-center justify-between gap-3">
+              <div class="text-white/70 font-semibold flex items-center gap-2">
+                <i class="fa-solid fa-code-branch text-brand"></i> Client Version
+              </div>
+              <span id="serverVersionPill" class="px-3 py-1.5 rounded-full border border-[rgba(157,78,221,.30)] bg-[rgba(157,78,221,.16)] font-extrabold">
+                1.8.8
+              </span>
+            </div>
 
-          <div class="quickrow">
-            <div class="label"><i class="fa-solid fa-circle-info"></i> Tip</div>
-            <div class="value" style="font-family: inherit; color: rgba(234,234,255,.78);">
-              Keep <strong>wss://</strong> in the address.
+            <div class="rounded-2xl border border-[rgba(157,78,221,.16)] bg-black/25 p-4 text-white/75">
+              <div class="font-semibold flex items-center gap-2">
+                <i class="fa-solid fa-circle-info text-brand"></i> Tip
+              </div>
+              <div class="mt-2">
+                Keep <span class="font-extrabold">wss://</span> in the address.
+              </div>
             </div>
           </div>
         </aside>
@@ -706,163 +167,197 @@
     </section>
 
     <!-- PORTAL -->
-    <section class="section" aria-label="Portal access">
-      <div class="section-head">
+    <section class="mt-7 glass rounded-3xl p-6 md:p-7 shadow-lg">
+      <div class="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h2><i class="fa-solid fa-door-open"></i> Portal Access</h2>
-          <div class="desc">Choose your device — both connect to PromiseLand-CKMC.</div>
+          <h2 class="text-2xl font-black tracking-wide flex items-center gap-3">
+            <i class="fa-solid fa-door-open text-brand"></i> Portal Access
+          </h2>
+          <p class="text-white/70 mt-1">Choose your device — both connect to PromiseLand-CKMC.</p>
         </div>
       </div>
 
-      <div class="portal-grid">
-        <button class="portalbtn" id="launchDesktop">
-          <span class="versiontag" id="desktopVersionTag">v1.8.8</span>
-          <div class="portalicon"><i class="fa-solid fa-desktop"></i></div>
-          <div>
-            <div class="portaltitle">Desktop Portal</div>
-            <div class="portalsub">Launch /game.html</div>
+      <div class="mt-5 grid md:grid-cols-2 gap-4">
+        <button id="launchDesktop"
+          class="focus-ring group relative overflow-hidden rounded-3xl p-5 text-left min-h-[96px]
+                 border border-white/15
+                 bg-[radial-gradient(120px_80px_at_20%_15%,rgba(255,255,255,.15),transparent_60%),linear-gradient(135deg,rgba(157,78,221,.95),rgba(123,44,191,.92))]
+                 shadow-lg hover:-translate-y-1 transition">
+          <span id="desktopVersionTag" class="absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-black border border-white/20 bg-black/25">v1.8.8</span>
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-2xl grid place-items-center border border-white/20 bg-white/15">
+              <i class="fa-solid fa-desktop text-xl drop-shadow"></i>
+            </div>
+            <div>
+              <div class="font-black tracking-widest uppercase">Desktop Portal</div>
+              <div class="text-white/85 mt-1">Launch <span class="font-mono">/game.html</span></div>
+            </div>
           </div>
         </button>
 
-        <button class="portalbtn" id="launchMobile">
-          <span class="versiontag" id="mobileVersionTag">v1.8.8</span>
-          <div class="portalicon"><i class="fa-solid fa-mobile-screen-button"></i></div>
-          <div>
-            <div class="portaltitle">Mobile Portal</div>
-            <div class="portalsub">Launch /mobile.html</div>
+        <button id="launchMobile"
+          class="focus-ring group relative overflow-hidden rounded-3xl p-5 text-left min-h-[96px]
+                 border border-white/15
+                 bg-[radial-gradient(120px_80px_at_20%_15%,rgba(255,255,255,.15),transparent_60%),linear-gradient(135deg,rgba(157,78,221,.95),rgba(123,44,191,.92))]
+                 shadow-lg hover:-translate-y-1 transition">
+          <span id="mobileVersionTag" class="absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-black border border-white/20 bg-black/25">v1.8.8</span>
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-2xl grid place-items-center border border-white/20 bg-white/15">
+              <i class="fa-solid fa-mobile-screen-button text-xl drop-shadow"></i>
+            </div>
+            <div>
+              <div class="font-black tracking-widest uppercase">Mobile Portal</div>
+              <div class="text-white/85 mt-1">Launch <span class="font-mono">/mobile.html</span></div>
+            </div>
           </div>
         </button>
       </div>
 
-      <div class="actions-row">
-        <button class="ghostbtn" id="openInstructions2">
+      <div class="mt-4">
+        <button id="openInstructions2"
+          class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
+                 border border-[rgba(157,78,221,.28)] bg-[rgba(157,78,221,.10)]
+                 hover:bg-[rgba(157,78,221,.18)] hover:-translate-y-0.5 transition">
           <i class="fa-solid fa-circle-question"></i> How do I connect?
         </button>
       </div>
     </section>
 
-    <!-- FEATURES (faith-friendly + accurate tone) -->
-    <section class="section" aria-label="Server features">
-      <div class="section-head">
-        <div>
-          <h2><i class="fa-solid fa-star"></i> What We’re About</h2>
-          <div class="desc">Good vibes, good people, and a space that points back to Jesus.</div>
-        </div>
+    <!-- FEATURES -->
+    <section class="mt-7 glass rounded-3xl p-6 md:p-7 shadow-lg">
+      <div>
+        <h2 class="text-2xl font-black tracking-wide flex items-center gap-3">
+          <i class="fa-solid fa-star text-brand"></i> What We’re About
+        </h2>
+        <p class="text-white/70 mt-1">Good vibes, good people, and a space that points back to Jesus.</p>
       </div>
 
-      <div class="grid">
-        <div class="card">
-          <i class="fa-solid fa-handshake-angle"></i>
-          <h3>Friendly Community</h3>
-          <p>Meet people, build together, and keep the chat respectful.</p>
+      <div class="mt-5 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)] hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
+          <i class="fa-solid fa-handshake-angle text-2xl text-brand"></i>
+          <h3 class="mt-3 font-black">Friendly Community</h3>
+          <p class="mt-2 text-white/70">Meet people, build together, and keep the chat respectful.</p>
         </div>
-        <div class="card">
-          <i class="fa-solid fa-dove"></i>
-          <h3>Jesus-Centered</h3>
-          <p>Faith is welcome here — we keep it uplifting and positive.</p>
+        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)] hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
+          <i class="fa-solid fa-dove text-2xl text-brand"></i>
+          <h3 class="mt-3 font-black">Jesus-Centered</h3>
+          <p class="mt-2 text-white/70">Faith is welcome here — we keep it uplifting and positive.</p>
         </div>
-        <div class="card">
-          <i class="fa-solid fa-campground"></i>
-          <h3>Survival Fun</h3>
-          <p>Explore, grind, build bases, and make memories.</p>
+        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)] hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
+          <i class="fa-solid fa-campground text-2xl text-brand"></i>
+          <h3 class="mt-3 font-black">Survival Fun</h3>
+          <p class="mt-2 text-white/70">Explore, grind, build bases, and make memories.</p>
         </div>
-        <div class="card">
-          <i class="fa-solid fa-people-group"></i>
-          <h3>Friendship First</h3>
-          <p>Play for fun — whether you’re new or experienced.</p>
+        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)] hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
+          <i class="fa-solid fa-people-group text-2xl text-brand"></i>
+          <h3 class="mt-3 font-black">Friendship First</h3>
+          <p class="mt-2 text-white/70">Play for fun — whether you’re new or experienced.</p>
         </div>
       </div>
     </section>
 
     <!-- GALLERY -->
-    <section class="section" aria-label="Server gallery">
-      <div class="section-head">
-        <div>
-          <h2><i class="fa-solid fa-camera"></i> Server Preview</h2>
-          <div class="desc">Update these screenshots anytime.</div>
-        </div>
+    <section class="mt-7 glass rounded-3xl p-6 md:p-7 shadow-lg">
+      <div>
+        <h2 class="text-2xl font-black tracking-wide flex items-center gap-3">
+          <i class="fa-solid fa-camera text-brand"></i> Server Preview
+        </h2>
+        <p class="text-white/70 mt-1">Update these screenshots anytime.</p>
       </div>
 
-      <div class="gallery">
-        <div class="shot">
-          <img src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/Spawn.png" alt="Spawn area screenshot">
-          <div class="cap">Spawn</div>
+      <div class="mt-5 grid md:grid-cols-2 gap-4">
+        <div class="relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg">
+          <img class="w-full h-full object-cover scale-[1.02] hover:scale-[1.06] transition duration-300"
+               src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/Spawn.png" alt="Spawn area screenshot">
+          <div class="absolute left-3 bottom-3 px-3 py-2 rounded-2xl bg-black/50 border border-white/15 font-black">Spawn</div>
         </div>
-        <div class="shot">
-          <img src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/growth.png" alt="Growth area screenshot">
-          <div class="cap">Growth</div>
+        <div class="relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg">
+          <img class="w-full h-full object-cover scale-[1.02] hover:scale-[1.06] transition duration-300"
+               src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/growth.png" alt="Growth area screenshot">
+          <div class="absolute left-3 bottom-3 px-3 py-2 rounded-2xl bg-black/50 border border-white/15 font-black">Growth</div>
         </div>
-        <div class="shot">
-          <img src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/World1.png" alt="World screenshot 1">
-          <div class="cap">World</div>
+        <div class="relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg">
+          <img class="w-full h-full object-cover scale-[1.02] hover:scale-[1.06] transition duration-300"
+               src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/World1.png" alt="World screenshot 1">
+          <div class="absolute left-3 bottom-3 px-3 py-2 rounded-2xl bg-black/50 border border-white/15 font-black">World</div>
         </div>
-        <div class="shot">
-          <img src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/World2.png" alt="World screenshot 2">
-          <div class="cap">World</div>
+        <div class="relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg">
+          <img class="w-full h-full object-cover scale-[1.02] hover:scale-[1.06] transition duration-300"
+               src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/World2.png" alt="World screenshot 2">
+          <div class="absolute left-3 bottom-3 px-3 py-2 rounded-2xl bg-black/50 border border-white/15 font-black">World</div>
         </div>
       </div>
     </section>
   </main>
 
-  <footer>
-    <div class="foot">
+  <footer class="border-t border-[rgba(157,78,221,.22)] bg-[linear-gradient(180deg,rgba(7,7,16,.20),rgba(7,7,16,.70))]">
+    <div class="mx-auto max-w-6xl px-4 py-8 flex flex-wrap items-center justify-between gap-4">
       <div>
-        <div style="font-weight:900; letter-spacing:.3px;">© <span id="year"></span> PromiseLand-CKMC</div>
-        <div style="color:rgba(234,234,255,.70); margin-top:6px;">Fun • Friendship • Faith</div>
+        <div class="font-black tracking-wide">© <span id="year"></span> PromiseLand-CKMC</div>
+        <div class="text-white/70 mt-1">Fun • Friendship • Faith</div>
       </div>
-      <a class="discord" id="discordFooter" href="#" target="_blank" rel="noopener">
+
+      <a id="discordFooter" href="#" target="_blank" rel="noopener"
+         class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-black
+                border border-white/15 shadow-lg hover:-translate-y-0.5 transition
+                bg-[linear-gradient(90deg,#5865F2,#7289DA)]">
         <i class="fa-brands fa-discord"></i> Join the Discord
       </a>
     </div>
   </footer>
 
   <!-- Modal -->
-  <div class="modal" id="modal" aria-hidden="true">
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <div class="modal-top">
-        <h3 id="modalTitle"><i class="fa-solid fa-plug"></i> Server Connection Guide</h3>
-        <button class="close" id="closeModal" aria-label="Close">
+  <div id="modal" class="fixed inset-0 hidden place-items-center bg-black/75 z-[999] p-4" aria-hidden="true">
+    <div class="w-full max-w-4xl glass rounded-3xl shadow-soft p-4 md:p-6" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="flex items-center justify-between gap-3 pb-3">
+        <h3 id="modalTitle" class="text-xl md:text-2xl font-black flex items-center gap-2">
+          <i class="fa-solid fa-plug text-brand"></i> Server Connection Guide
+        </h3>
+        <button id="closeModal"
+          class="focus-ring w-11 h-11 rounded-2xl grid place-items-center border border-white/15 bg-white/5 hover:bg-white/10 transition"
+          aria-label="Close">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
 
-      <div class="modal-grid">
-        <div class="steps">
-          <div style="font-weight:900; letter-spacing:.2px; display:flex; gap:10px; align-items:center;">
-            <i class="fa-solid fa-list-ol" style="color:var(--primary)"></i> Steps
+      <div class="grid lg:grid-cols-2 gap-4">
+        <div class="rounded-3xl border border-[rgba(157,78,221,.18)] bg-black/20 p-5">
+          <div class="font-black flex items-center gap-2">
+            <i class="fa-solid fa-list-ol text-brand"></i> Steps
           </div>
-          <ol>
+          <ol class="list-decimal pl-5 mt-3 text-white/85 leading-7">
             <li>Launch the portal (Desktop or Mobile).</li>
             <li>Enter a username (remember it for next time).</li>
-            <li>Go to <strong>Multiplayer</strong> → <strong>Add Server</strong>.</li>
-            <li>Server Address: <strong><span id="modalAddr">wss://PromiseLand-CKMC.eagler.host</span></strong></li>
+            <li>Go to <span class="font-extrabold">Multiplayer</span> → <span class="font-extrabold">Add Server</span>.</li>
+            <li>Server Address: <span class="font-extrabold" id="modalAddr">wss://PromiseLand-CKMC.eagler.host</span></li>
             <li>Save → Join.</li>
           </ol>
 
-          <div class="mono">
-            <span id="modalAddrMono">wss://PromiseLand-CKMC.eagler.host</span>
-            <button class="copybtn" id="copyIPModal">
+          <div class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/12 bg-black/30 p-3">
+            <span id="modalAddrMono" class="font-mono font-extrabold text-sm md:text-base break-all">wss://PromiseLand-CKMC.eagler.host</span>
+            <button id="copyIPModal"
+              class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold border border-white/15 bg-white/5 hover:bg-white/10 transition">
               <i class="fa-regular fa-copy"></i> Copy
             </button>
           </div>
 
-          <div class="modal-note">
-            Tip: Don’t remove <strong>wss://</strong> — that’s required for the portal connection.
+          <div class="mt-3 text-white/70 text-center">
+            Tip: Don’t remove <span class="font-extrabold">wss://</span> — that’s required.
           </div>
         </div>
 
-        <div class="viz">
-          <div style="font-weight:900; letter-spacing:.2px; display:flex; gap:10px; align-items:center;">
-            <i class="fa-solid fa-images" style="color:var(--primary)"></i> Visual Guide
+        <div class="rounded-3xl border border-[rgba(157,78,221,.18)] bg-black/20 p-5">
+          <div class="font-black flex items-center gap-2">
+            <i class="fa-solid fa-images text-brand"></i> Visual Guide
           </div>
 
-          <div class="vizgrid">
-            <img src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/step1.png" alt="Step 1 screenshot">
-            <img src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/step2.png" alt="Step 2 screenshot">
+          <div class="mt-3 grid grid-cols-2 gap-3">
+            <img class="w-full rounded-2xl border border-white/12" src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/step1.png" alt="Step 1 screenshot">
+            <img class="w-full rounded-2xl border border-white/12" src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/step2.png" alt="Step 2 screenshot">
           </div>
 
-          <div class="modal-note" style="margin-top:10px;">
-            Version: <strong><span id="modalVersion">1.8.8</span></strong>
+          <div class="mt-4 text-white/70 text-center">
+            Version: <span class="font-extrabold text-white" id="modalVersion">1.8.8</span>
           </div>
         </div>
       </div>
@@ -870,40 +365,41 @@
   </div>
 
   <!-- Toast -->
-  <div class="toast" id="toast" role="status" aria-live="polite">
-    <span class="dot"></span>
+  <div id="toast" class="fixed left-1/2 bottom-5 -translate-x-1/2 translate-y-3 opacity-0 pointer-events-none
+                        bg-black/80 border border-white/15 text-white px-4 py-2 rounded-full shadow-lg
+                        flex items-center gap-2 font-extrabold transition"
+       role="status" aria-live="polite">
+    <span class="w-2.5 h-2.5 rounded-full bg-gold shadow-[0_0_16px_rgba(255,212,0,.35)]"></span>
     <span id="toastText">Copied!</span>
   </div>
 
   <script>
     /*********************************************************
-     * EDIT THESE VALUES = Accurate server info
+     * EDIT THESE VALUES
      *********************************************************/
     const SERVER = {
       name: "PromiseLand-CKMC",
       tagline: "A chill, Jesus-centered Minecraft community focused on fun, friendship, and faith.",
       version: "1.8.8",
       address: "wss://PromiseLand-CKMC.eagler.host",
-      discord: "https://discord.gg/EVeQ3RssqX",              // change if needed
-      youtube: "https://www.youtube.com/@SwiflyNetwork",     // change/remove if needed
+      discord: "https://discord.gg/EVeQ3RssqX",
+      youtube: "https://www.youtube.com/@SwiflyNetwork",
       desktopPortalPath: "/game.html",
       mobilePortalPath: "/mobile.html",
     };
 
     const $ = (id) => document.getElementById(id);
-
-    function setText(id, value){ const el = $(id); if (el) el.textContent = value; }
-    function setHref(id, value){ const el = $(id); if (el) el.href = value; }
+    const setText = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+    const setHref = (id, v) => { const el = $(id); if (el) el.href = v; };
 
     // Links
     setHref("discordLink", SERVER.discord);
     setHref("discordFooter", SERVER.discord);
 
-    // If you don't have a YouTube, hide it cleanly
     if (SERVER.youtube && SERVER.youtube.trim() !== "") {
       setHref("youtubeLink", SERVER.youtube);
     } else {
-      $("youtubeLink").style.display = "none";
+      $("youtubeLink").classList.add("hidden");
     }
 
     // Address + version
@@ -914,7 +410,6 @@
     setText("desktopVersionTag", "v" + SERVER.version);
     setText("mobileVersionTag", "v" + SERVER.version);
     setText("serverVersionPill", SERVER.version);
-
     setText("year", new Date().getFullYear());
 
     // Launch portal pages
@@ -925,14 +420,16 @@
     $("launchDesktop").addEventListener("click", () => launch(SERVER.desktopPortalPath));
     $("launchMobile").addEventListener("click", () => launch(SERVER.mobilePortalPath));
 
-    // Modal controls
+    // Modal
     const modal = $("modal");
     function openModal(){
-      modal.dataset.open = "true";
+      modal.classList.remove("hidden");
+      modal.classList.add("grid");
       modal.setAttribute("aria-hidden", "false");
     }
     function closeModal(){
-      modal.dataset.open = "false";
+      modal.classList.add("hidden");
+      modal.classList.remove("grid");
       modal.setAttribute("aria-hidden", "true");
     }
     $("openInstructions").addEventListener("click", openModal);
@@ -945,19 +442,23 @@
     const toast = $("toast");
     const toastText = $("toastText");
     let toastTimer = null;
+
     function showToast(msg){
       toastText.textContent = msg;
-      toast.classList.add("show");
+      toast.classList.remove("opacity-0", "translate-y-3");
+      toast.classList.add("opacity-100", "translate-y-0");
       clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.classList.remove("show"), 1400);
+      toastTimer = setTimeout(() => {
+        toast.classList.add("opacity-0", "translate-y-3");
+        toast.classList.remove("opacity-100", "translate-y-0");
+      }, 1400);
     }
 
-    // Copy helpers
     async function copyText(text){
       try{
         await navigator.clipboard.writeText(text);
         showToast("Copied: " + text);
-      }catch(err){
+      }catch{
         const ta = document.createElement("textarea");
         ta.value = text;
         document.body.appendChild(ta);
