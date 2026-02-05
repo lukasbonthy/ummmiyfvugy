@@ -27,7 +27,7 @@ function contentType(filePath) {
     '.webp': 'image/webp',
     '.svg': 'image/svg+xml',
     '.ico': 'image/x-icon',
-    '.txt': 'text/plain; charset=utf-8'
+    '.txt': 'text/plain; charset=utf-8',
   })[ext] || 'application/octet-stream';
 }
 
@@ -79,29 +79,15 @@ function serveStatic(req, res) {
 
 const server = http.createServer(serveStatic);
 
-// WS server
+// WebSocket server (noServer so we can keep "/" for HTTP too)
 const wss = new WebSocket.Server({ noServer: true, perMessageDeflate: false, maxPayload: 0 });
 
-// IMPORTANT: WS upgrades happen BEFORE HTTP routing. This allows "/" to serve HTML normally.
 server.on('upgrade', (req, socket, head) => {
   const upgrade = (req.headers.upgrade || '').toLowerCase();
-  if (upgrade !== 'websocket') {
-    socket.destroy();
-    return;
-  }
+  if (upgrade !== 'websocket') return socket.destroy();
 
-  // We allow WS on "/" (and "/?anything")
-  const urlPath = (req.url || '').split('?')[0];
-  if (urlPath !== '/') {
-    // If you truly want WS ONLY on "/", keep this.
-    // If your client uses another path, remove this check.
-    socket.destroy();
-    return;
-  }
-
-  wss.handleUpgrade(req, socket, head, (ws) => {
-    wss.emit('connection', ws, req);
-  });
+  // Allow WS on ANY path (safer for clients); still serves public via normal HTTP
+  wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
 });
 
 wss.on('connection', (client, req) => {
@@ -110,19 +96,22 @@ wss.on('connection', (client, req) => {
     req.socket.remoteAddress ||
     'unknown';
 
-  // Preserve subprotocols (this matters for Eagler ping/MOTD)
   const protoHeader = req.headers['sec-websocket-protocol'];
   const protocols = protoHeader
     ? protoHeader.split(',').map(s => s.trim()).filter(Boolean)
     : undefined;
 
-  log('[IN ] ws connect', { ip, path: req.url, protocols });
+  log('[IN ] ws connect', { ip, path: (req.url || '').split('?')[0], protocols });
 
-  // KEY FIX: DO NOT forward/mirror Origin. Let Node connect "server-to-server".
+  // Buffer client -> upstream until upstream is open (THIS FIXES MOTD/ping)
+  const MAX_QUEUE_BYTES = 2 * 1024 * 1024; // 2MB is plenty for server-list ping bursts
+  const queue = [];
+  let queueBytes = 0;
+
   const upstream = new WebSocket(UPSTREAM_URL, protocols, {
     perMessageDeflate: false,
     handshakeTimeout: 15000,
-    // no headers here on purpose
+    // IMPORTANT: do NOT forward Origin (often breaks Eagler)
   });
 
   const kill = (why) => {
@@ -131,16 +120,39 @@ wss.on('connection', (client, req) => {
     log('[CLS]', { ip, why });
   };
 
+  function enqueue(data, isBinary) {
+    const size = typeof data === 'string' ? Buffer.byteLength(data) : (data?.length ?? 0);
+    queue.push({ data, isBinary, size });
+    queueBytes += size;
+    if (queueBytes > MAX_QUEUE_BYTES) kill('queue overflow');
+  }
+
+  // Attach client handler IMMEDIATELY so we don't drop early packets
+  client.on('message', (data, isBinary) => {
+    if (upstream.readyState === WebSocket.OPEN) {
+      upstream.send(data, { binary: isBinary, compress: false });
+    } else if (upstream.readyState === WebSocket.CONNECTING) {
+      enqueue(data, isBinary);
+    } else {
+      kill('upstream not available');
+    }
+  });
+
   upstream.on('open', () => {
     log('[UP ] open', { ip });
 
-    client.on('message', (data, isBinary) => {
-      if (upstream.readyState === WebSocket.OPEN) upstream.send(data, { binary: isBinary });
-    });
+    // Flush queued messages in order
+    while (queue.length && upstream.readyState === WebSocket.OPEN) {
+      const m = queue.shift();
+      queueBytes -= m.size;
+      upstream.send(m.data, { binary: m.isBinary, compress: false });
+    }
+  });
 
-    upstream.on('message', (data, isBinary) => {
-      if (client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary });
-    });
+  upstream.on('message', (data, isBinary) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data, { binary: isBinary, compress: false });
+    }
   });
 
   upstream.on('close', (code, reason) => {
@@ -165,5 +177,5 @@ wss.on('connection', (client, req) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  log(`listening on ${PORT} (HTTP on /, WSS on /)`);
+  log(`listening on ${PORT} (HTTP serves /public, WSS upgrades on /)`);
 });
