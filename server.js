@@ -10,14 +10,20 @@ const UPSTREAM_URL = 'wss://PromiseLand-CKMC.eagler.host/';
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
+// WebSocket endpoint on your domain:
+const WS_PATH = '/wss';
+
+// ---- Timeouts ----
 const UPSTREAM_OPEN_TIMEOUT_MS = 15000;
-const IDLE_TIMEOUT_MS = 10 * 60 * 1000;
-const PING_INTERVAL_MS = 15000;
+const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // only if truly idle
+const PING_INTERVAL_MS = 15000; // control-frame ping, NOT data
 
-const PAUSE_AT = 16 * 1024 * 1024;
-const RESUME_AT = 4 * 1024 * 1024;
-const KILL_AT = 64 * 1024 * 1024;
+// ---- Buffer controls ----
+const PAUSE_AT = 16 * 1024 * 1024;   // pause reads when writer buffered > 16MB
+const RESUME_AT = 4 * 1024 * 1024;   // resume when writer buffered < 4MB
+const KILL_AT = 64 * 1024 * 1024;    // close if buffers explode
 
+// Queue while upstream connects
 const MAX_QUEUE_BYTES = 32 * 1024 * 1024;
 
 function log(...args) {
@@ -53,22 +59,7 @@ function contentType(filePath) {
   })[ext] || 'application/octet-stream';
 }
 
-function serveFile(res, filePath) {
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
-      res.end('Server Error');
-      return;
-    }
-    res.writeHead(200, {
-      'content-type': contentType(filePath),
-      'cache-control': filePath.endsWith('.html') ? 'no-cache' : 'public, max-age=86400',
-    });
-    res.end(data);
-  });
-}
-
-const server = http.createServer((req, res) => {
+function serveStatic(req, res) {
   const urlPathRaw = (req.url || '').split('?')[0];
 
   if (urlPathRaw === '/health') {
@@ -86,6 +77,13 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Don’t serve WS path as a file
+  if (urlPath === WS_PATH) {
+    res.writeHead(426, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('Upgrade Required');
+    return;
+  }
+
   if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
 
   const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, '');
@@ -98,18 +96,25 @@ const server = http.createServer((req, res) => {
   }
 
   fs.stat(filePath, (err, st) => {
-    if (!err && st.isFile()) return serveFile(res, filePath);
-
-    const fallback = path.join(PUBLIC_DIR, 'index.html');
-    fs.stat(fallback, (e2, st2) => {
-      if (!e2 && st2.isFile()) return serveFile(res, fallback);
-      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
-      res.end('Not Found');
+    const chosen = (!err && st.isFile()) ? filePath : path.join(PUBLIC_DIR, 'index.html');
+    fs.readFile(chosen, (e2, data) => {
+      if (e2) {
+        res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end('Not Found');
+        return;
+      }
+      res.writeHead(200, {
+        'content-type': contentType(chosen),
+        'cache-control': chosen.endsWith('.html') ? 'no-cache' : 'public, max-age=86400',
+      });
+      res.end(data);
     });
   });
-});
+}
 
-// Prevent Node from timing out upgraded sockets
+const server = http.createServer(serveStatic);
+
+// Keep Node from timing out upgraded sockets
 server.keepAliveTimeout = 0;
 server.headersTimeout = 0;
 
@@ -122,10 +127,25 @@ server.on('connection', (sock) => {
   } catch {}
 });
 
+// WS server created with noServer so we control which path upgrades
 const wss = new WebSocket.Server({
-  server,
-  perMessageDeflate: false, // safest for binary protocol passthrough
+  noServer: true,
+  perMessageDeflate: false, // safest passthrough
   maxPayload: 0,
+});
+
+server.on('upgrade', (req, socket, head) => {
+  const urlPath = (req.url || '').split('?')[0];
+
+  if (urlPath !== WS_PATH) {
+    socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    wss.emit('connection', ws, req);
+  });
 });
 
 wss.on('connection', (client, req) => {
@@ -137,7 +157,7 @@ wss.on('connection', (client, req) => {
     ? clientProtocolsRaw.split(',').map(s => s.trim()).filter(Boolean)
     : [];
 
-  log('[IN ] client connected', { ip: clientIP, origin: clientOrigin, protocols: clientProtocols });
+  log('[IN ] connect', { ip: clientIP, origin: clientOrigin, protocols: clientProtocols });
 
   try {
     client._socket?.setNoDelay(true);
@@ -148,9 +168,29 @@ wss.on('connection', (client, req) => {
   let closed = false;
   let lastActivity = Date.now();
 
+  // queue until upstream open
   const queue = [];
   let queueBytes = 0;
 
+  let pausedClientReads = false;
+  let pausedUpReads = false;
+
+  function touch() { lastActivity = Date.now(); }
+
+  function safeClose(code = 1000, reason = 'closed') {
+    if (closed) return;
+    closed = true;
+    cleanup();
+    log('[CLS] close', { ip: clientIP, code, reason });
+    try { client.close(code, reason); } catch {}
+    try { upstream.close(code, reason); } catch {}
+    setTimeout(() => {
+      try { client.terminate(); } catch {}
+      try { upstream.terminate(); } catch {}
+    }, 250);
+  }
+
+  // Build upstream (mirror Origin; do NOT spoof Host; do NOT send app noops)
   const upstream = new WebSocket(UPSTREAM_URL, {
     perMessageDeflate: false,
     handshakeTimeout: UPSTREAM_OPEN_TIMEOUT_MS,
@@ -164,18 +204,37 @@ wss.on('connection', (client, req) => {
     },
   });
 
-  function touch() { lastActivity = Date.now(); }
+  function applyBackpressure() {
+    if (client.readyState !== WebSocket.OPEN || upstream.readyState !== WebSocket.OPEN) return;
 
-  function safeClose(code = 1000, reason = 'closed') {
-    if (closed) return;
-    closed = true;
-    log('[CLS] closing', { ip: clientIP, code, reason });
-    try { client.close(code, reason); } catch {}
-    try { upstream.close(code, reason); } catch {}
-    setTimeout(() => {
-      try { client.terminate(); } catch {}
-      try { upstream.terminate(); } catch {}
-    }, 250);
+    const upBuf = upstream.bufferedAmount || 0;
+    const clBuf = client.bufferedAmount || 0;
+
+    if (upBuf > KILL_AT || clBuf > KILL_AT) {
+      return safeClose(1013, 'buffer overflow');
+    }
+
+    // If upstream is clogged, pause client reads
+    if (!pausedClientReads && upBuf > PAUSE_AT) {
+      pausedClientReads = true;
+      try { client._socket?.pause(); } catch {}
+      log('[BP ] pause client', { ip: clientIP, upBuf });
+    } else if (pausedClientReads && upBuf < RESUME_AT) {
+      pausedClientReads = false;
+      try { client._socket?.resume(); } catch {}
+      log('[BP ] resume client', { ip: clientIP, upBuf });
+    }
+
+    // If client is clogged, pause upstream reads
+    if (!pausedUpReads && clBuf > PAUSE_AT) {
+      pausedUpReads = true;
+      try { upstream._socket?.pause(); } catch {}
+      log('[BP ] pause upstream', { ip: clientIP, clBuf });
+    } else if (pausedUpReads && clBuf < RESUME_AT) {
+      pausedUpReads = false;
+      try { upstream._socket?.resume(); } catch {}
+      log('[BP ] resume upstream', { ip: clientIP, clBuf });
+    }
   }
 
   const openTimer = setTimeout(() => {
@@ -187,32 +246,10 @@ wss.on('connection', (client, req) => {
   }, 10000);
 
   const pingTimer = setInterval(() => {
+    // Control-frame pings only (safe)
     if (client.readyState === WebSocket.OPEN) { try { client.ping(); } catch {} }
     if (upstream.readyState === WebSocket.OPEN) { try { upstream.ping(); } catch {} }
   }, PING_INTERVAL_MS);
-
-  let pausedClientReads = false;
-  let pausedUpstreamReads = false;
-
-  function applyBackpressure() {
-    if (client.readyState !== WebSocket.OPEN || upstream.readyState !== WebSocket.OPEN) return;
-    const upBuf = upstream.bufferedAmount || 0;
-    const clBuf = client.bufferedAmount || 0;
-
-    if (upBuf > KILL_AT || clBuf > KILL_AT) return safeClose(1013, 'buffer overflow');
-
-    if (!pausedClientReads && upBuf > PAUSE_AT) {
-      pausedClientReads = true; try { client._socket?.pause(); } catch {}
-    } else if (pausedClientReads && upBuf < RESUME_AT) {
-      pausedClientReads = false; try { client._socket?.resume(); } catch {}
-    }
-
-    if (!pausedUpstreamReads && clBuf > PAUSE_AT) {
-      pausedUpstreamReads = true; try { upstream._socket?.pause(); } catch {}
-    } else if (pausedUpstreamReads && clBuf < RESUME_AT) {
-      pausedUpstreamReads = false; try { upstream._socket?.resume(); } catch {}
-    }
-  }
 
   const bpTimer = setInterval(applyBackpressure, 50);
 
@@ -225,7 +262,7 @@ wss.on('connection', (client, req) => {
 
   upstream.on('open', () => {
     clearTimeout(openTimer);
-    log('[UP ] upstream open', { ip: clientIP });
+    log('[UP ] open', { ip: clientIP });
 
     try {
       upstream._socket?.setNoDelay(true);
@@ -240,6 +277,7 @@ wss.on('connection', (client, req) => {
     }
   });
 
+  // client -> upstream
   client.on('message', (data, isBinary) => {
     touch();
     if (upstream.readyState === WebSocket.OPEN) {
@@ -248,13 +286,14 @@ wss.on('connection', (client, req) => {
       const size = typeof data === 'string' ? Buffer.byteLength(data) : (data?.length ?? 0);
       queue.push({ data, isBinary, size });
       queueBytes += size;
-      if (queueBytes > MAX_QUEUE_BYTES) return safeClose(1009, 'queue overflow');
+      if (queueBytes > MAX_QUEUE_BYTES) safeClose(1009, 'queue overflow');
     } else {
       safeClose(1011, 'upstream not available');
     }
     applyBackpressure();
   });
 
+  // upstream -> client
   upstream.on('message', (data, isBinary) => {
     touch();
     if (client.readyState === WebSocket.OPEN) {
@@ -263,27 +302,21 @@ wss.on('connection', (client, req) => {
     applyBackpressure();
   });
 
+  // closes/errors
   upstream.on('close', (code, reason) => {
-    log('[UP ] upstream close', { ip: clientIP, code, reason: reason?.toString?.() || '' });
-    cleanup();
+    log('[UP ] close', { ip: clientIP, code, reason: reason?.toString?.() || '' });
     safeClose(code || 1000, 'upstream closed');
   });
-
   client.on('close', (code, reason) => {
-    log('[IN ] client close', { ip: clientIP, code, reason: reason?.toString?.() || '' });
-    cleanup();
+    log('[IN ] close', { ip: clientIP, code, reason: reason?.toString?.() || '' });
     safeClose(code || 1000, 'client closed');
   });
-
   upstream.on('error', (err) => {
-    log('[UP ] upstream error', { ip: clientIP, err: err?.message || err });
-    cleanup();
+    log('[UP ] error', { ip: clientIP, err: err?.message || err });
     safeClose(1011, 'upstream error');
   });
-
   client.on('error', (err) => {
-    log('[IN ] client error', { ip: clientIP, err: err?.message || err });
-    cleanup();
+    log('[IN ] error', { ip: clientIP, err: err?.message || err });
     safeClose(1011, 'client error');
   });
 
@@ -292,5 +325,5 @@ wss.on('connection', (client, req) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  log(`listening on ${PORT}`);
+  log(`listening on ${PORT} (ws: ${WS_PATH})`);
 });
