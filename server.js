@@ -1,6 +1,8 @@
 'use strict';
 
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const WebSocket = require('ws');
 
 const UPSTREAM_URL = 'wss://PromiseLand-CKMC.eagler.host/';
@@ -20,6 +22,9 @@ const UPSTREAM_OPEN_TIMEOUT_MS = 8000;
 // If no traffic for too long, kill both sides (optional)
 const IDLE_TIMEOUT_MS = 120000;
 
+// Static site folder
+const PUBLIC_DIR = path.join(__dirname, 'public');
+
 function log(...args) {
   console.log(new Date().toISOString(), ...args);
 }
@@ -30,20 +35,99 @@ function getHeader(req, name) {
   return Array.isArray(v) ? v[0] : v;
 }
 
+function contentType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  return ({
+    '.html': 'text/html; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.js': 'application/javascript; charset=utf-8',
+    '.mjs': 'application/javascript; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    '.txt': 'text/plain; charset=utf-8',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.ttf': 'font/ttf',
+    '.mp3': 'audio/mpeg',
+    '.mp4': 'video/mp4',
+  })[ext] || 'application/octet-stream';
+}
+
+function serveFile(res, filePath) {
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end('Server Error');
+      return;
+    }
+    res.writeHead(200, {
+      'content-type': contentType(filePath),
+      // Cache non-html assets. Keep html uncached so updates show faster.
+      'cache-control': filePath.endsWith('.html') ? 'no-cache' : 'public, max-age=86400'
+    });
+    res.end(data);
+  });
+}
+
 const server = http.createServer((req, res) => {
-  if (req.url === '/' || req.url === '/health') {
-    res.writeHead(200, { 'content-type': 'text/plain' });
+  const urlPathRaw = (req.url || '').split('?')[0];
+
+  // Health check
+  if (urlPathRaw === '/health') {
+    res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('ok\n');
     return;
   }
-  res.writeHead(404);
-  res.end();
+
+  // Serve static site
+  let urlPath;
+  try {
+    urlPath = decodeURIComponent(urlPathRaw);
+  } catch {
+    res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('Bad Request');
+    return;
+  }
+
+  if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
+
+  // Prevent path traversal
+  const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, '');
+  const filePath = path.join(PUBLIC_DIR, safePath);
+
+  if (!filePath.startsWith(PUBLIC_DIR)) {
+    res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('Forbidden');
+    return;
+  }
+
+  fs.stat(filePath, (err, stat) => {
+    if (!err && stat.isFile()) {
+      serveFile(res, filePath);
+      return;
+    }
+
+    // SPA fallback (optional): if you have routes like /play, serve index.html
+    const fallback = path.join(PUBLIC_DIR, 'index.html');
+    fs.stat(fallback, (e2, st2) => {
+      if (!e2 && st2.isFile()) {
+        serveFile(res, fallback);
+      } else {
+        res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end('Not Found');
+      }
+    });
+  });
 });
 
 const wss = new WebSocket.Server({
   server,
-  perMessageDeflate: false, // important for some WS clients
-  // maxPayload: 0, // (0 = default). You can set e.g. 50 * 1024 * 1024 if needed
+  perMessageDeflate: false,
 });
 
 wss.on('connection', (client, req) => {
@@ -61,22 +145,17 @@ wss.on('connection', (client, req) => {
 
   log('[IN ] client connected', { ip: clientIP, origin: clientOrigin, protocols: clientProtocols });
 
-  // Buffer client messages until upstream is open
   const queue = [];
   let closed = false;
   let lastActivity = Date.now();
 
   const upstream = new WebSocket(UPSTREAM_URL, {
     perMessageDeflate: false,
-    // Forward subprotocols if present (some servers care)
     protocol: clientProtocols.length ? clientProtocols : undefined,
     headers: {
-      // Use spoofed values that tend to pass checks
       Origin: SPOOF_ORIGIN,
       Host: SPOOF_HOST,
       'User-Agent': SPOOF_UA,
-
-      // Still pass original origin in a secondary header (harmless, sometimes useful)
       'X-Forwarded-Origin': clientOrigin || '',
       'Cache-Control': 'no-cache',
       Pragma: 'no-cache',
@@ -95,7 +174,6 @@ wss.on('connection', (client, req) => {
     try { upstream.close(code, reason); } catch {}
   }
 
-  // Kill if upstream never opens
   const openTimer = setTimeout(() => {
     if (upstream.readyState !== WebSocket.OPEN) {
       log('[UP ] open timeout (upstream never opened)', { ip: clientIP });
@@ -103,7 +181,6 @@ wss.on('connection', (client, req) => {
     }
   }, UPSTREAM_OPEN_TIMEOUT_MS);
 
-  // Idle timeout watchdog
   const idleTimer = setInterval(() => {
     if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
       log('[IDLE] idle timeout', { ip: clientIP });
@@ -111,7 +188,6 @@ wss.on('connection', (client, req) => {
     }
   }, 10000);
 
-  // Keepalive pings
   const pingTimer = setInterval(() => {
     if (client.readyState === WebSocket.OPEN) {
       try { client.ping(); } catch {}
@@ -127,18 +203,15 @@ wss.on('connection', (client, req) => {
     clearInterval(pingTimer);
   }
 
-  // Client -> Upstream
   client.on('message', (data, isBinary) => {
     touch();
 
-    // Queue until upstream open so first handshake packet is not lost
     if (upstream.readyState === WebSocket.OPEN) {
       upstream.send(data, { binary: isBinary }, (err) => {
         if (err) log('[ERR] send to upstream failed', err?.message || err);
       });
     } else if (upstream.readyState === WebSocket.CONNECTING) {
       queue.push({ data, isBinary });
-      // Avoid unbounded memory if someone spams before open
       if (queue.length > 5000) {
         log('[WARN] queue too large, dropping connection', { ip: clientIP });
         safeClose(1009, 'queue overflow');
@@ -148,7 +221,6 @@ wss.on('connection', (client, req) => {
     }
   });
 
-  // Upstream -> Client
   upstream.on('message', (data, isBinary) => {
     touch();
     if (client.readyState === WebSocket.OPEN) {
@@ -162,7 +234,6 @@ wss.on('connection', (client, req) => {
     clearTimeout(openTimer);
     log('[UP ] upstream open', { ip: clientIP });
 
-    // Flush queued early packets (handshake)
     while (queue.length && upstream.readyState === WebSocket.OPEN) {
       const { data, isBinary } = queue.shift();
       upstream.send(data, { binary: isBinary });
@@ -193,7 +264,6 @@ wss.on('connection', (client, req) => {
     safeClose(1011, 'client error');
   });
 
-  // Respond to ping/pong to keep timers fresh
   client.on('pong', touch);
   upstream.on('pong', touch);
 });
