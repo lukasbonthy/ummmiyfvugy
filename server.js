@@ -14,13 +14,17 @@ const SPOOF_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36';
 
 // Keepalive (helps prevent Render / middleboxes dropping idle WS)
-const PING_INTERVAL_MS = 15000;
+const PING_INTERVAL_MS = 8000; // lower = usually less "laggy" feel
 
 // If upstream doesn’t open quickly, kill the attempt
-const UPSTREAM_OPEN_TIMEOUT_MS = 8000;
+const UPSTREAM_OPEN_TIMEOUT_MS = 9000;
 
-// If no traffic for too long, kill both sides (optional)
+// If no traffic for too long, kill both sides
 const IDLE_TIMEOUT_MS = 120000;
+
+// Safety limits (prevents memory blowups)
+const MAX_QUEUE_MESSAGES = 8000;
+const MAX_QUEUE_BYTES = 8 * 1024 * 1024; // 8 MB buffered before upstream opens
 
 // Static site folder
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -67,8 +71,7 @@ function serveFile(res, filePath) {
     }
     res.writeHead(200, {
       'content-type': contentType(filePath),
-      // Cache non-html assets. Keep html uncached so updates show faster.
-      'cache-control': filePath.endsWith('.html') ? 'no-cache' : 'public, max-age=86400'
+      'cache-control': filePath.endsWith('.html') ? 'no-cache' : 'public, max-age=86400',
     });
     res.end(data);
   });
@@ -112,7 +115,7 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    // SPA fallback (optional): if you have routes like /play, serve index.html
+    // SPA fallback: serve index.html for unknown routes
     const fallback = path.join(PUBLIC_DIR, 'index.html');
     fs.stat(fallback, (e2, st2) => {
       if (!e2 && st2.isFile()) {
@@ -145,7 +148,10 @@ wss.on('connection', (client, req) => {
 
   log('[IN ] client connected', { ip: clientIP, origin: clientOrigin, protocols: clientProtocols });
 
+  // Buffer client messages until upstream is open
   const queue = [];
+  let queueBytes = 0;
+
   let closed = false;
   let lastActivity = Date.now();
 
@@ -203,28 +209,39 @@ wss.on('connection', (client, req) => {
     clearInterval(pingTimer);
   }
 
-  client.on('message', (data, isBinary) => {
+  // === IMPORTANT: RAW FRAME PASS-THROUGH (fixes infinite eating / no drops) ===
+  // Do NOT set {binary: isBinary}. Just forward the data as-is.
+
+  client.on('message', (data /*, isBinary */) => {
     touch();
 
     if (upstream.readyState === WebSocket.OPEN) {
-      upstream.send(data, { binary: isBinary }, (err) => {
+      upstream.send(data, (err) => {
         if (err) log('[ERR] send to upstream failed', err?.message || err);
       });
-    } else if (upstream.readyState === WebSocket.CONNECTING) {
-      queue.push({ data, isBinary });
-      if (queue.length > 5000) {
-        log('[WARN] queue too large, dropping connection', { ip: clientIP });
+      return;
+    }
+
+    if (upstream.readyState === WebSocket.CONNECTING) {
+      // Buffer until upstream opens (prevents handshake packet loss)
+      const size = typeof data === 'string' ? Buffer.byteLength(data) : (data?.length || 0);
+      queue.push(data);
+      queueBytes += size;
+
+      if (queue.length > MAX_QUEUE_MESSAGES || queueBytes > MAX_QUEUE_BYTES) {
+        log('[WARN] queue overflow, dropping connection', { ip: clientIP, queueLen: queue.length, queueBytes });
         safeClose(1009, 'queue overflow');
       }
-    } else {
-      safeClose(1011, 'upstream not available');
+      return;
     }
+
+    safeClose(1011, 'upstream not available');
   });
 
-  upstream.on('message', (data, isBinary) => {
+  upstream.on('message', (data /*, isBinary */) => {
     touch();
     if (client.readyState === WebSocket.OPEN) {
-      client.send(data, { binary: isBinary }, (err) => {
+      client.send(data, (err) => {
         if (err) log('[ERR] send to client failed', err?.message || err);
       });
     }
@@ -234,9 +251,13 @@ wss.on('connection', (client, req) => {
     clearTimeout(openTimer);
     log('[UP ] upstream open', { ip: clientIP });
 
+    // Flush queued early packets (handshake + first actions)
     while (queue.length && upstream.readyState === WebSocket.OPEN) {
-      const { data, isBinary } = queue.shift();
-      upstream.send(data, { binary: isBinary });
+      const msg = queue.shift();
+      if (typeof msg === 'string') queueBytes -= Buffer.byteLength(msg);
+      else queueBytes -= (msg?.length || 0);
+
+      upstream.send(msg);
     }
   });
 
