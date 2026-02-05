@@ -6,7 +6,7 @@ const fs = require('fs');
 const httpProxy = require('http-proxy');
 
 const PORT = process.env.PORT || 10000;
-const WS_PATH = '/wss';
+const WS_PATH = '/';
 const UPSTREAM = 'wss://PromiseLand-CKMC.eagler.host/';
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
