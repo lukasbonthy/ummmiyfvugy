@@ -22,16 +22,19 @@
             gold: "#ffd400"
           },
           boxShadow: {
-            glow: "0 0 35px rgba(157,78,221,.25)",
-            soft: "0 18px 60px rgba(0,0,0,.58)"
+            glow: "0 0 35px rgba(157,78,221,.22)",
+            soft: "0 18px 60px rgba(0,0,0,.58)",
+            lift: "0 18px 40px rgba(0,0,0,.55)"
           },
           keyframes: {
-            floaty: { "0%,100%": { transform: "translateY(0px)" }, "50%": { transform: "translateY(-6px)" } },
-            shimmer: { "0%": { backgroundPosition: "0% 50%" }, "100%": { backgroundPosition: "100% 50%" } }
+            floaty: { "0%,100%": { transform: "translateY(0px)" }, "50%": { transform: "translateY(-7px)" } },
+            shimmer: { "0%": { backgroundPosition: "0% 50%" }, "100%": { backgroundPosition: "100% 50%" } },
+            glowpulse: { "0%,100%": { opacity: .55 }, "50%": { opacity: .85 } }
           },
           animation: {
-            floaty: "floaty 3.2s ease-in-out infinite",
-            shimmer: "shimmer 7s ease-in-out infinite"
+            floaty: "floaty 3.4s ease-in-out infinite",
+            shimmer: "shimmer 8s ease-in-out infinite",
+            glowpulse: "glowpulse 2.2s ease-in-out infinite"
           }
         }
       }
@@ -48,41 +51,91 @@
 
   <style>
     .glass {
-      background: linear-gradient(135deg, rgba(157,78,221,.14), rgba(0,0,0,.10)), rgba(18,18,34,.82);
-      border: 1px solid rgba(157,78,221,.25);
-      backdrop-filter: blur(12px);
+      background: linear-gradient(135deg, rgba(157,78,221,.12), rgba(0,0,0,.12)), rgba(18,18,34,.84);
+      border: 1px solid rgba(255,255,255,.10);
+      backdrop-filter: blur(14px);
     }
     .glass2 {
-      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+      background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.03));
       border: 1px solid rgba(255,255,255,.14);
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(14px);
     }
     .focus-ring:focus-visible{
       outline: 3px solid rgba(255, 212, 0, .55);
       outline-offset: 2px;
     }
+
+    /* Premium gradient border wrapper */
+    .gwrap{ position: relative; }
+    .gwrap::before{
+      content:"";
+      position:absolute; inset:0;
+      padding:1px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(255,255,255,.18), rgba(157,78,221,.35), rgba(255,255,255,.10));
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events:none;
+    }
+
+    /* Soft noise overlay (pure CSS) */
+    .noise{
+      background-image:
+        radial-gradient(circle at 1px 1px, rgba(255,255,255,.06) 1px, transparent 0);
+      background-size: 18px 18px;
+      opacity:.10;
+      mix-blend-mode: overlay;
+    }
+
+    /* Button sheen */
+    .sheen{ position: relative; overflow: hidden; }
+    .sheen::after{
+      content:"";
+      position:absolute;
+      top:-60%;
+      left:-40%;
+      width: 45%;
+      height: 220%;
+      transform: rotate(20deg);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+      opacity:0;
+      transition: opacity .25s ease, transform .45s ease;
+    }
+    .sheen:hover::after{
+      opacity:1;
+      transform: translateX(220%) rotate(20deg);
+    }
+
+    /* Scrollbar */
     ::-webkit-scrollbar{ height:10px; width:10px; }
-    ::-webkit-scrollbar-thumb{ background: rgba(157,78,221,.35); border-radius: 999px; }
+    ::-webkit-scrollbar-thumb{ background: rgba(157,78,221,.30); border-radius: 999px; }
     ::-webkit-scrollbar-track{ background: rgba(255,255,255,.04); }
   </style>
 </head>
 
 <body class="font-outfit text-white min-h-screen overflow-x-hidden
-             bg-[radial-gradient(1000px_700px_at_10%_10%,rgba(157,78,221,.18),transparent_55%),radial-gradient(900px_650px_at_90%_85%,rgba(123,44,191,.16),transparent_55%),linear-gradient(180deg,#070710,#0b0b16)]">
+             bg-[radial-gradient(1000px_700px_at_12%_10%,rgba(157,78,221,.16),transparent_55%),radial-gradient(900px_650px_at_90%_85%,rgba(123,44,191,.14),transparent_55%),linear-gradient(180deg,#070710,#0b0b16)]">
 
-  <!-- Ambient blobs -->
-  <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10">
-    <div class="absolute -top-24 -left-24 w-[420px] h-[420px] rounded-full bg-[rgba(157,78,221,.22)] blur-3xl animate-floaty"></div>
-    <div class="absolute -bottom-28 -right-20 w-[520px] h-[520px] rounded-full bg-[rgba(123,44,191,.18)] blur-3xl animate-floaty [animation-delay:1.2s]"></div>
+  <!-- Ambient / texture -->
+  <div id="ambient" aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10">
+    <div class="absolute inset-0 noise"></div>
+    <div class="absolute -top-28 -left-28 w-[460px] h-[460px] rounded-full bg-[rgba(157,78,221,.20)] blur-3xl animate-floaty"></div>
+    <div class="absolute -bottom-32 -right-24 w-[560px] h-[560px] rounded-full bg-[rgba(123,44,191,.16)] blur-3xl animate-floaty [animation-delay:1.3s]"></div>
+    <div class="absolute inset-0 opacity-[0.07]"
+         style="background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,.15) 1px, transparent 0);
+                background-size: 26px 26px;"></div>
   </div>
 
   <!-- Topbar -->
-  <header class="sticky top-0 z-50 border-b border-[rgba(157,78,221,.20)]
-                 bg-[linear-gradient(180deg,rgba(7,7,16,.92),rgba(7,7,16,.64))] backdrop-blur">
+  <header class="sticky top-0 z-50 border-b border-white/10
+                 bg-[linear-gradient(180deg,rgba(7,7,16,.92),rgba(7,7,16,.62))] backdrop-blur">
     <div class="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="w-11 h-11 rounded-2xl grid place-items-center border border-white/15 shadow-glow
-                    bg-[radial-gradient(14px_14px_at_30%_30%,rgba(255,255,255,.35),transparent_60%),linear-gradient(135deg,#9d4edd,#7b2cbf)]">
+                    bg-[radial-gradient(14px_14px_at_30%_30%,rgba(255,255,255,.38),transparent_60%),linear-gradient(135deg,#9d4edd,#7b2cbf)]">
           <i class="fa-solid fa-cross text-white drop-shadow"></i>
         </div>
         <div class="leading-tight">
@@ -99,17 +152,17 @@
 
       <nav class="flex items-center gap-2" aria-label="Social links">
         <a id="discordLink" href="#" target="_blank" rel="noopener" title="Discord"
-           class="focus-ring w-11 h-11 rounded-full grid place-items-center border border-[rgba(157,78,221,.22)]
-                  bg-[rgba(157,78,221,.10)] shadow-lg hover:-translate-y-0.5 hover:bg-[rgba(157,78,221,.20)] transition">
+           class="focus-ring sheen w-11 h-11 rounded-full grid place-items-center border border-white/15
+                  bg-white/5 shadow-lg hover:-translate-y-0.5 hover:bg-white/10 transition">
           <i class="fa-brands fa-discord"></i>
         </a>
         <a id="youtubeLink" href="#" target="_blank" rel="noopener" title="YouTube"
-           class="focus-ring w-11 h-11 rounded-full grid place-items-center border border-[rgba(157,78,221,.22)]
-                  bg-[rgba(157,78,221,.10)] shadow-lg hover:-translate-y-0.5 hover:bg-[rgba(157,78,221,.20)] transition">
+           class="focus-ring sheen w-11 h-11 rounded-full grid place-items-center border border-white/15
+                  bg-white/5 shadow-lg hover:-translate-y-0.5 hover:bg-white/10 transition">
           <i class="fa-brands fa-youtube"></i>
         </a>
         <button id="themeToggle" title="Toggle effects"
-          class="focus-ring w-11 h-11 rounded-full grid place-items-center border border-white/15 bg-white/5
+          class="focus-ring sheen w-11 h-11 rounded-full grid place-items-center border border-white/15 bg-white/5
                  hover:bg-white/10 transition">
           <i class="fa-solid fa-wand-magic-sparkles"></i>
         </button>
@@ -122,18 +175,19 @@
     <!-- HERO -->
     <section class="glass rounded-3xl shadow-soft overflow-hidden p-6 md:p-8 relative">
       <div aria-hidden="true" class="pointer-events-none absolute -inset-px rounded-3xl
-           bg-[linear-gradient(90deg,rgba(255,255,255,.10),rgba(157,78,221,.25),rgba(255,255,255,.10))]
-           opacity-40 blur-xl"></div>
+           bg-[linear-gradient(90deg,rgba(255,255,255,.10),rgba(157,78,221,.22),rgba(255,255,255,.10))]
+           opacity-35 blur-xl"></div>
 
-      <div class="relative grid md:grid-cols-5 gap-6 items-center">
-        <div class="md:col-span-3">
-          <div class="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-white/15 bg-white/5 text-white/75 font-semibold tracking-wide">
+      <div class="relative grid lg:grid-cols-5 gap-6 items-start">
+        <div class="lg:col-span-3">
+          <div class="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-white/15 bg-white/5 text-white/80 font-semibold tracking-wide">
+            <span class="w-2 h-2 rounded-full bg-gold shadow-[0_0_18px_rgba(255,212,0,.35)] animate-glowpulse"></span>
             <i class="fa-solid fa-dove text-gold"></i>
             <span id="kickerText">Chill • Jesus-centered • Community</span>
           </div>
 
           <h1 class="mt-4 font-black tracking-wide leading-[1.02] text-4xl md:text-5xl lg:text-6xl
-                     text-transparent bg-clip-text bg-gradient-to-r from-[#f2e9ff] via-[#c77dff] to-[#9d4edd]
+                     text-transparent bg-clip-text bg-gradient-to-r from-[#f6f0ff] via-[#d7b7ff] to-[#9d4edd]
                      [background-size:200%_200%] animate-shimmer drop-shadow">
             FUN, FRIENDSHIP, & FAITH
           </h1>
@@ -143,168 +197,174 @@
             Join through the portal, add the server, and come hang out.
           </p>
 
-          <!-- Small pills listing all connection types -->
-          <div class="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-white/80">
-            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-white/10 bg-white/5">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-              Java Browser (Eagler)
-            </span>
-            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-white/10 bg-white/5">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-              Java (PC Launcher)
-            </span>
-            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-white/10 bg-white/5">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-              Bedrock
-            </span>
-          </div>
-
-          <div class="mt-5 flex flex-wrap gap-3">
-            <button id="openInstructions"
-              class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
-                     border border-[rgba(157,78,221,.28)] bg-[rgba(157,78,221,.12)]
-                     hover:bg-[rgba(157,78,221,.22)] hover:-translate-y-0.5 transition">
-              <i class="fa-solid fa-plug"></i> Connection Instructions
-            </button>
-
-            <button id="copyIPTop"
-              class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
-                     border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition">
-              <i class="fa-regular fa-copy"></i> Copy Java (WSS) Address
-            </button>
-
-            <!-- New Java Launcher copy button -->
-            <button id="copyJavaTop"
-              class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
-                     border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition">
-              <i class="fa-solid fa-server"></i> Copy Java Server IP
-            </button>
-
-            <button id="copyBedrockTop"
-              class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
-                     border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition">
-              <i class="fa-solid fa-mobile-screen-button"></i> Copy Bedrock IP
-            </button>
-
+          <!-- Action layout -->
+          <div class="mt-6 grid sm:grid-cols-2 gap-3">
             <button id="scrollToPortal"
-              class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
-                     border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition">
+              class="focus-ring sheen inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-extrabold
+                     border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition shadow-lift">
               <i class="fa-solid fa-bolt"></i> Quick Launch
             </button>
+
+            <button id="openInstructions"
+              class="focus-ring sheen inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-extrabold
+                     border border-[rgba(157,78,221,.30)] bg-[rgba(157,78,221,.14)]
+                     hover:bg-[rgba(157,78,221,.22)] hover:-translate-y-0.5 transition shadow-lift">
+              <i class="fa-solid fa-plug"></i> Connection Instructions
+            </button>
+          </div>
+
+          <!-- Segmented copy bar -->
+          <div class="mt-3 gwrap rounded-2xl p-3 bg-black/15">
+            <div class="grid md:grid-cols-3 gap-2">
+              <button id="copyIPTop"
+                class="focus-ring sheen w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-extrabold
+                       border border-white/12 bg-white/5 hover:bg-white/10 transition">
+                <i class="fa-solid fa-globe text-white/85"></i> Copy Eagler WSS
+              </button>
+
+              <button id="copyJavaTop"
+                class="focus-ring sheen w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-extrabold
+                       border border-white/12 bg-white/5 hover:bg-white/10 transition">
+                <i class="fa-solid fa-server text-white/85"></i> Copy Java IP
+              </button>
+
+              <button id="copyBedrockTop"
+                class="focus-ring sheen w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-extrabold
+                       border border-white/12 bg-white/5 hover:bg-white/10 transition">
+                <i class="fa-solid fa-mobile-screen-button text-white/85"></i> Copy Bedrock
+              </button>
+            </div>
+
+            <div class="mt-2 text-xs text-white/60 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span class="inline-flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-white/40"></span> Eagler uses <span class="font-extrabold">wss://</span>
+              </span>
+              <span class="inline-flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-white/40"></span> Java is usually port <span class="font-extrabold">25565</span>
+              </span>
+              <span class="inline-flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-white/40"></span> Bedrock uses <span class="font-extrabold">UDP</span>
+              </span>
+            </div>
           </div>
         </div>
 
-        <!-- Quick info card -->
-        <aside class="md:col-span-2 glass2 rounded-3xl p-4 md:p-5 shadow-lg">
-          <div class="space-y-3">
-
-            <!-- WSS Address -->
-            <div class="rounded-2xl border border-[rgba(157,78,221,.16)] bg-black/25 p-4">
-              <div class="flex items-center justify-between gap-3">
-                <div class="text-white/70 font-semibold flex items-center gap-2">
-                  <i class="fa-solid fa-globe text-brand"></i> Java (Eagler) Address
-                </div>
-                <span class="text-xs font-black text-white/60 border border-white/10 bg-white/5 px-2 py-1 rounded-full">WSS</span>
+        <!-- Connection panel -->
+        <aside class="lg:col-span-2">
+          <div class="gwrap glass2 rounded-3xl p-4 md:p-5 shadow-lg">
+            <div class="flex items-center justify-between gap-3">
+              <div class="font-black tracking-wide text-lg flex items-center gap-2">
+                <i class="fa-solid fa-satellite-dish text-brand"></i> Connect
               </div>
-
-              <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
-                <span id="serverAddrText" class="font-mono font-bold text-sm md:text-base break-all">
-                  wss://promiselandmc.com/
-                </span>
-
-                <div class="flex gap-2">
-                  <button id="copyIP"
-                    class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold
-                           border border-white/15 bg-white/5 hover:bg-white/10 transition">
-                    <i class="fa-regular fa-copy"></i> Copy
-                  </button>
-                  <button id="openInNew"
-                    class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold
-                           border border-white/15 bg-white/5 hover:bg-white/10 transition">
-                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                  </button>
-                </div>
-              </div>
-
-              <div class="mt-3 text-xs text-white/60">
-                Multiplayer → Add Server → paste this
-              </div>
-            </div>
-
-            <!-- Java Launcher Address (new) -->
-            <div class="rounded-2xl border border-[rgba(157,78,221,.16)] bg-black/25 p-4">
-              <div class="flex items-center justify-between gap-3">
-                <div class="text-white/70 font-semibold flex items-center gap-2">
-                  <i class="fa-solid fa-server text-brand"></i> Java (PC Launcher)
-                </div>
-                <span class="text-xs font-black text-white/60 border border-white/10 bg-white/5 px-2 py-1 rounded-full">
-                  Port 25565
-                </span>
-              </div>
-
-              <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
-                <span id="javaAddrText" class="font-mono font-bold text-sm md:text-base break-all">
-                  promiselandmc.com
-                </span>
-
-                <button id="copyJava"
-                  class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold
-                         border border-white/15 bg-white/5 hover:bg-white/10 transition">
-                  <i class="fa-regular fa-copy"></i> Copy
-                </button>
-              </div>
-
-              <div class="mt-3 text-xs text-white/60">
-                Java Edition → Multiplayer → Add Server / Direct Connect → <span class="font-extrabold">promiselandmc.com</span>
-              </div>
-            </div>
-
-            <!-- Bedrock Address -->
-            <div class="rounded-2xl border border-[rgba(157,78,221,.16)] bg-black/25 p-4">
-              <div class="flex items-center justify-between gap-3">
-                <div class="text-white/70 font-semibold flex items-center gap-2">
-                  <i class="fa-solid fa-gamepad text-brand"></i> Bedrock Address
-                </div>
-                <span class="text-xs font-black text-white/60 border border-white/10 bg-white/5 px-2 py-1 rounded-full">UDP</span>
-              </div>
-
-              <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
-                <span id="bedrockAddrText" class="font-mono font-bold text-sm md:text-base break-all">
-                  mc.promiselandmc.com:9888
-                </span>
-
-                <button id="copyBedrock"
-                  class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold
-                         border border-white/15 bg-white/5 hover:bg-white/10 transition">
-                  <i class="fa-regular fa-copy"></i> Copy
-                </button>
-              </div>
-
-              <div class="mt-3 text-xs text-white/60">
-                Server Address: mc.promiselandmc.com • Port: 9888
-              </div>
-            </div>
-
-            <!-- Version -->
-            <div class="rounded-2xl border border-[rgba(157,78,221,.16)] bg-black/25 p-4 flex items-center justify-between gap-3">
-              <div class="text-white/70 font-semibold flex items-center gap-2">
-                <i class="fa-solid fa-code-branch text-brand"></i> Client Version
-              </div>
-              <span id="serverVersionPill" class="px-3 py-1.5 rounded-full border border-[rgba(157,78,221,.30)] bg-[rgba(157,78,221,.16)] font-extrabold">
+              <span id="serverVersionPill" class="px-3 py-1.5 rounded-full border border-white/12 bg-white/5 font-extrabold">
                 1.8.8
               </span>
             </div>
 
-            <div class="rounded-2xl border border-[rgba(157,78,221,.16)] bg-black/25 p-4 text-white/75">
-              <div class="font-semibold flex items-center gap-2">
-                <i class="fa-solid fa-circle-info text-brand"></i> Tip
-              </div>
-              <div class="mt-2">
-                Java/Eagler needs <span class="font-extrabold">wss://</span>. Java Launcher uses <span class="font-extrabold">promiselandmc.com</span> on port <span class="font-extrabold">25565</span>.
-                Bedrock uses <span class="font-extrabold">mc.promiselandmc.com</span> + port <span class="font-extrabold">9888</span>.
-              </div>
-            </div>
+            <div class="mt-4 space-y-3">
 
+              <!-- Eagler WSS -->
+              <div class="gwrap rounded-2xl bg-black/25 p-4">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="text-white/80 font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-globe text-brand"></i> Java Browser (Eagler)
+                  </div>
+                  <span class="text-[11px] font-black text-white/70 border border-white/10 bg-white/5 px-2 py-1 rounded-full">WSS</span>
+                </div>
+
+                <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+                  <span id="serverAddrText" class="font-mono font-extrabold text-sm md:text-base break-all">
+                    wss://promiselandmc.com/
+                  </span>
+
+                  <div class="flex gap-2">
+                    <button id="copyIP"
+                      class="focus-ring sheen inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold
+                             border border-white/12 bg-white/5 hover:bg-white/10 transition">
+                      <i class="fa-regular fa-copy"></i> Copy
+                    </button>
+                    <button id="openInNew"
+                      class="focus-ring sheen inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold
+                             border border-white/12 bg-white/5 hover:bg-white/10 transition"
+                      title="Open in new tab">
+                      <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="mt-2 text-xs text-white/60">
+                  Multiplayer → Add Server → paste the full WSS address
+                </div>
+              </div>
+
+              <!-- Java Launcher -->
+              <div class="gwrap rounded-2xl bg-black/25 p-4">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="text-white/80 font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-server text-brand"></i> Java (PC Launcher)
+                  </div>
+                  <span class="text-[11px] font-black text-white/70 border border-white/10 bg-white/5 px-2 py-1 rounded-full">
+                    Port <span id="javaPortPill">25565</span>
+                  </span>
+                </div>
+
+                <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+                  <span id="javaAddrText" class="font-mono font-extrabold text-sm md:text-base break-all">
+                    promiselandmc.com
+                  </span>
+
+                  <button id="copyJava"
+                    class="focus-ring sheen inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold
+                           border border-white/12 bg-white/5 hover:bg-white/10 transition">
+                    <i class="fa-regular fa-copy"></i> Copy
+                  </button>
+                </div>
+
+                <div class="mt-2 text-xs text-white/60">
+                  Java Edition → Multiplayer → Add Server / Direct Connect
+                </div>
+              </div>
+
+              <!-- Bedrock -->
+              <div class="gwrap rounded-2xl bg-black/25 p-4">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="text-white/80 font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-gamepad text-brand"></i> Bedrock
+                  </div>
+                  <span class="text-[11px] font-black text-white/70 border border-white/10 bg-white/5 px-2 py-1 rounded-full">UDP</span>
+                </div>
+
+                <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+                  <span id="bedrockAddrText" class="font-mono font-extrabold text-sm md:text-base break-all">
+                    mc.promiselandmc.com:9888
+                  </span>
+
+                  <button id="copyBedrock"
+                    class="focus-ring sheen inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold
+                           border border-white/12 bg-white/5 hover:bg-white/10 transition">
+                    <i class="fa-regular fa-copy"></i> Copy
+                  </button>
+                </div>
+
+                <div class="mt-2 text-xs text-white/60">
+                  Server Address: <span class="font-extrabold" id="bedrockHostTip">mc.promiselandmc.com</span>
+                  • Port: <span class="font-extrabold" id="bedrockPortTip">9888</span>
+                </div>
+              </div>
+
+              <!-- Tip -->
+              <div class="gwrap rounded-2xl bg-black/20 p-4 text-white/75">
+                <div class="font-bold flex items-center gap-2">
+                  <i class="fa-solid fa-circle-info text-brand"></i> Fast Tip
+                </div>
+                <div class="mt-2 text-sm">
+                  Eagler uses <span class="font-extrabold">wss://</span>.
+                  Java Launcher uses <span class="font-extrabold">promiselandmc.com</span>.
+                  Bedrock uses <span class="font-extrabold">mc.promiselandmc.com</span> + port <span class="font-extrabold">9888</span>.
+                </div>
+              </div>
+
+            </div>
           </div>
         </aside>
       </div>
@@ -317,18 +377,18 @@
           <h2 class="text-2xl font-black tracking-wide flex items-center gap-3">
             <i class="fa-solid fa-door-open text-brand"></i> Portal Access
           </h2>
-          <p class="text-white/70 mt-1">Choose your device — both connect to PromiseLand-CKMC.</p>
+          <p class="text-white/70 mt-1">Launch the browser client, then add the server inside Multiplayer.</p>
         </div>
       </div>
 
-      <div class="mt-5 grid md:grid-cols-2 gap-4">
+      <div class="mt-5 grid lg:grid-cols-2 gap-4">
         <button id="launchDesktop"
-          class="focus-ring group relative overflow-hidden rounded-3xl p-5 text-left min-h-[104px]
-                 border border-white/15
-                 bg-[radial-gradient(120px_80px_at_20%_15%,rgba(255,255,255,.15),transparent_60%),linear-gradient(135deg,rgba(157,78,221,.95),rgba(123,44,191,.92))]
-                 shadow-lg hover:-translate-y-1 transition">
-          <span id="desktopVersionTag" class="absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-black border border-white/20 bg-black/25">v1.8.8</span>
-          <div class="flex items-center gap-4">
+          class="focus-ring sheen group relative overflow-hidden rounded-3xl p-5 text-left min-h-[112px]
+                 border border-white/15 bg-white/5 shadow-lg hover:-translate-y-1 transition">
+          <div aria-hidden="true" class="absolute inset-0 opacity-60
+               bg-[radial-gradient(120px_80px_at_20%_15%,rgba(255,255,255,.18),transparent_60%),linear-gradient(135deg,rgba(157,78,221,.85),rgba(123,44,191,.78))]"></div>
+          <span id="desktopVersionTag" class="absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-black border border-white/15 bg-black/30">v1.8.8</span>
+          <div class="relative flex items-center gap-4">
             <div class="w-12 h-12 rounded-2xl grid place-items-center border border-white/20 bg-white/15">
               <i class="fa-solid fa-desktop text-xl drop-shadow"></i>
             </div>
@@ -340,12 +400,12 @@
         </button>
 
         <button id="launchMobile"
-          class="focus-ring group relative overflow-hidden rounded-3xl p-5 text-left min-h-[104px]
-                 border border-white/15
-                 bg-[radial-gradient(120px_80px_at_20%_15%,rgba(255,255,255,.15),transparent_60%),linear-gradient(135deg,rgba(157,78,221,.95),rgba(123,44,191,.92))]
-                 shadow-lg hover:-translate-y-1 transition">
-          <span id="mobileVersionTag" class="absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-black border border-white/20 bg-black/25">v1.8.8</span>
-          <div class="flex items-center gap-4">
+          class="focus-ring sheen group relative overflow-hidden rounded-3xl p-5 text-left min-h-[112px]
+                 border border-white/15 bg-white/5 shadow-lg hover:-translate-y-1 transition">
+          <div aria-hidden="true" class="absolute inset-0 opacity-60
+               bg-[radial-gradient(120px_80px_at_20%_15%,rgba(255,255,255,.18),transparent_60%),linear-gradient(135deg,rgba(157,78,221,.85),rgba(123,44,191,.78))]"></div>
+          <span id="mobileVersionTag" class="absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-black border border-white/15 bg-black/30">v1.8.8</span>
+          <div class="relative flex items-center gap-4">
             <div class="w-12 h-12 rounded-2xl grid place-items-center border border-white/20 bg-white/15">
               <i class="fa-solid fa-mobile-screen-button text-xl drop-shadow"></i>
             </div>
@@ -359,14 +419,14 @@
 
       <div class="mt-4 flex flex-wrap gap-3">
         <button id="openInstructions2"
-          class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
-                 border border-[rgba(157,78,221,.28)] bg-[rgba(157,78,221,.12)]
+          class="focus-ring sheen inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
+                 border border-[rgba(157,78,221,.30)] bg-[rgba(157,78,221,.14)]
                  hover:bg-[rgba(157,78,221,.22)] hover:-translate-y-0.5 transition">
           <i class="fa-solid fa-circle-question"></i> How do I connect?
         </button>
 
         <button id="copyShort"
-          class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
+          class="focus-ring sheen inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
                  border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition">
           <i class="fa-solid fa-link"></i> Copy Invite Text
         </button>
@@ -375,7 +435,7 @@
 
   </main>
 
-  <footer class="border-t border-[rgba(157,78,221,.22)] bg-[linear-gradient(180deg,rgba(7,7,16,.20),rgba(7,7,16,.70))]">
+  <footer class="border-t border-white/10 bg-[linear-gradient(180deg,rgba(7,7,16,.20),rgba(7,7,16,.75))]">
     <div class="mx-auto max-w-6xl px-4 py-8 flex flex-wrap items-center justify-between gap-4">
       <div>
         <div class="font-black tracking-wide">© <span id="year"></span> <span id="footerName">PromiseLand-CKMC</span></div>
@@ -383,7 +443,7 @@
       </div>
 
       <a id="discordFooter" href="#" target="_blank" rel="noopener"
-         class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-black
+         class="focus-ring sheen inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-black
                 border border-white/15 shadow-lg hover:-translate-y-0.5 transition
                 bg-[linear-gradient(90deg,#5865F2,#7289DA)]">
         <i class="fa-brands fa-discord"></i> Join the Discord
@@ -399,16 +459,16 @@
           <i class="fa-solid fa-plug text-brand"></i> Connection Guide
         </h3>
         <button id="closeModal"
-          class="focus-ring w-11 h-11 rounded-2xl grid place-items-center border border-white/15 bg-white/5 hover:bg-white/10 transition"
+          class="focus-ring sheen w-11 h-11 rounded-2xl grid place-items-center border border-white/15 bg-white/5 hover:bg-white/10 transition"
           aria-label="Close">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
 
       <div class="grid lg:grid-cols-2 gap-4">
-        <div class="rounded-3xl border border-[rgba(157,78,221,.18)] bg-black/20 p-5">
+        <div class="gwrap rounded-3xl border border-white/10 bg-black/20 p-5">
           <div class="font-black flex items-center gap-2">
-            <i class="fa-solid fa-list-ol text-brand"></i> Java / Eagler (WSS)
+            <i class="fa-solid fa-list-ol text-brand"></i> Java Browser (Eagler)
           </div>
 
           <ol class="list-decimal pl-5 mt-3 text-white/85 leading-7">
@@ -421,7 +481,7 @@
           <div class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/12 bg-black/30 p-3">
             <span id="modalAddrMono" class="font-mono font-extrabold text-sm md:text-base break-all">wss://promiselandmc.com/</span>
             <button id="copyIPModal"
-              class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold border border-white/15 bg-white/5 hover:bg-white/10 transition">
+              class="focus-ring sheen inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold border border-white/15 bg-white/5 hover:bg-white/10 transition">
               <i class="fa-regular fa-copy"></i> Copy
             </button>
           </div>
@@ -430,29 +490,28 @@
             Keep <span class="font-extrabold">wss://</span> in the address.
           </div>
 
-          <!-- New Java (PC Launcher) section inside the same card -->
           <div class="mt-5 border-t border-white/10 pt-4">
-            <div class="font-black flex items-center gap-2 text-sm uppercase tracking-wide text-white/75">
+            <div class="font-black flex items-center gap-2">
               <i class="fa-solid fa-server text-brand"></i> Java (PC Launcher)
             </div>
-            <ol class="list-decimal pl-5 mt-2 text-white/85 leading-7 text-sm">
-              <li>Open Minecraft Java Edition.</li>
-              <li>Multiplayer → Add Server or Direct Connection.</li>
+            <ol class="list-decimal pl-5 mt-3 text-white/85 leading-7">
+              <li>Minecraft Java Edition → Multiplayer</li>
+              <li>Add Server / Direct Connect</li>
               <li>Server Address: <span class="font-extrabold" id="modalJavaHost">promiselandmc.com</span></li>
-              <li>Save → Join.</li>
+              <li>Save → Join</li>
             </ol>
 
-            <div class="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-white/12 bg-black/30 p-3">
+            <div class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/12 bg-black/30 p-3">
               <span id="modalJavaMono" class="font-mono font-extrabold text-sm md:text-base break-all">promiselandmc.com</span>
               <button id="copyJavaModal"
-                class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold border border-white/15 bg-white/5 hover:bg-white/10 transition">
+                class="focus-ring sheen inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold border border-white/15 bg-white/5 hover:bg-white/10 transition">
                 <i class="fa-regular fa-copy"></i> Copy
               </button>
             </div>
           </div>
         </div>
 
-        <div class="rounded-3xl border border-[rgba(157,78,221,.18)] bg-black/20 p-5">
+        <div class="gwrap rounded-3xl border border-white/10 bg-black/20 p-5">
           <div class="font-black flex items-center gap-2">
             <i class="fa-solid fa-gamepad text-brand"></i> Bedrock
           </div>
@@ -467,7 +526,7 @@
           <div class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/12 bg-black/30 p-3">
             <span id="modalBedrockMono" class="font-mono font-extrabold text-sm md:text-base break-all">mc.promiselandmc.com:9888</span>
             <button id="copyBedrockModal"
-              class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold border border-white/15 bg-white/5 hover:bg-white/10 transition">
+              class="focus-ring sheen inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold border border-white/15 bg-white/5 hover:bg-white/10 transition">
               <i class="fa-regular fa-copy"></i> Copy
             </button>
           </div>
@@ -535,25 +594,25 @@
       $("youtubeLink").classList.add("hidden");
     }
 
-    // WSS address + version
-    setText("serverAddrText", SERVER.address);
-    setText("modalAddr", SERVER.address);
-    setText("modalAddrMono", SERVER.address);
+    // Version
     setText("serverVersionPill", SERVER.version);
     setText("desktopVersionTag", "v" + SERVER.version);
     setText("mobileVersionTag", "v" + SERVER.version);
     setText("year", new Date().getFullYear());
 
-    // Java (PC) server
-    const javaFull = SERVER.javaHost
-      ? SERVER.javaHost + (SERVER.javaPort ? ":" + SERVER.javaPort : "")
-      : "";
+    // Eagler
+    setText("serverAddrText", SERVER.address);
+    setText("modalAddr", SERVER.address);
+    setText("modalAddrMono", SERVER.address);
 
-    if (SERVER.javaHost) {
-      setText("javaAddrText", javaFull);
-      setText("modalJavaHost", SERVER.javaHost);
-      setText("modalJavaMono", javaFull);
-    }
+    // Java (PC)
+    setText("javaPortPill", String(SERVER.javaPort || 25565));
+    const javaFull = SERVER.javaHost
+      ? (SERVER.javaPort && SERVER.javaPort !== 25565 ? `${SERVER.javaHost}:${SERVER.javaPort}` : SERVER.javaHost)
+      : "";
+    setText("javaAddrText", javaFull);
+    setText("modalJavaHost", SERVER.javaHost);
+    setText("modalJavaMono", javaFull);
 
     // Bedrock
     const bedrockFull = `${SERVER.bedrockHost}:${SERVER.bedrockPort}`;
@@ -561,6 +620,8 @@
     setText("modalBedrockHost", SERVER.bedrockHost);
     setText("modalBedrockPort", String(SERVER.bedrockPort));
     setText("modalBedrockMono", bedrockFull);
+    setText("bedrockHostTip", SERVER.bedrockHost);
+    setText("bedrockPortTip", String(SERVER.bedrockPort));
 
     // Open WSS in new tab
     $("openInNew").addEventListener("click", () => {
@@ -629,22 +690,22 @@
       }
     }
 
-    // Copy buttons
+    // Copy buttons (Eagler)
     $("copyIP").addEventListener("click", () => copyText(SERVER.address));
     $("copyIPModal").addEventListener("click", () => copyText(SERVER.address));
     $("copyIPTop").addEventListener("click", () => copyText(SERVER.address));
 
-    if (javaFull) {
-      $("copyJava").addEventListener("click", () => copyText(javaFull));
-      $("copyJavaModal").addEventListener("click", () => copyText(javaFull));
-      $("copyJavaTop").addEventListener("click", () => copyText(javaFull));
-    }
+    // Copy buttons (Java)
+    $("copyJava").addEventListener("click", () => copyText(javaFull));
+    $("copyJavaModal").addEventListener("click", () => copyText(javaFull));
+    $("copyJavaTop").addEventListener("click", () => copyText(javaFull));
 
+    // Copy buttons (Bedrock)
     $("copyBedrock").addEventListener("click", () => copyText(bedrockFull));
     $("copyBedrockModal").addEventListener("click", () => copyText(bedrockFull));
     $("copyBedrockTop").addEventListener("click", () => copyText(bedrockFull));
 
-    // Copy invite text (includes all three)
+    // Copy invite text (all three)
     $("copyShort").addEventListener("click", () => {
       const msg =
 `${SERVER.name} — ${SERVER.tagline}
@@ -654,7 +715,7 @@ ${SERVER.address}
 Version: ${SERVER.version}
 
 Java (PC Launcher):
-${javaFull || SERVER.javaHost}
+${javaFull}
 
 Bedrock:
 ${SERVER.bedrockHost}
@@ -687,8 +748,7 @@ Discord: ${SERVER.discord}`;
     let effectsOn = true;
     toggle.addEventListener("click", () => {
       effectsOn = !effectsOn;
-      // First aria-hidden=true element is the ambient glow wrapper
-      const ambient = document.querySelectorAll("[aria-hidden='true']")[0];
+      const ambient = $("ambient");
       if (ambient) ambient.style.display = effectsOn ? "" : "none";
       showToast(effectsOn ? "Effects on" : "Effects off");
     });
