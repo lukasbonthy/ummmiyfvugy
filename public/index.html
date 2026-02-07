@@ -47,7 +47,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 
   <style>
-    /* tiny extras Tailwind doesn't cover nicely */
     .glass {
       background: linear-gradient(135deg, rgba(157,78,221,.14), rgba(0,0,0,.10)), rgba(18,18,34,.82);
       border: 1px solid rgba(157,78,221,.25);
@@ -62,7 +61,6 @@
       outline: 3px solid rgba(255, 212, 0, .55);
       outline-offset: 2px;
     }
-    /* nicer thin scrollbars (optional) */
     ::-webkit-scrollbar{ height:10px; width:10px; }
     ::-webkit-scrollbar-thumb{ background: rgba(157,78,221,.35); border-radius: 999px; }
     ::-webkit-scrollbar-track{ background: rgba(255,255,255,.04); }
@@ -123,7 +121,6 @@
 
     <!-- HERO -->
     <section class="glass rounded-3xl shadow-soft overflow-hidden p-6 md:p-8 relative">
-      <!-- subtle border glow -->
       <div aria-hidden="true" class="pointer-events-none absolute -inset-px rounded-3xl
            bg-[linear-gradient(90deg,rgba(255,255,255,.10),rgba(157,78,221,.25),rgba(255,255,255,.10))]
            opacity-40 blur-xl"></div>
@@ -146,7 +143,6 @@
             Join through the portal, add the server, and come hang out.
           </p>
 
-          <!-- Primary actions -->
           <div class="mt-5 flex flex-wrap gap-3">
             <button id="openInstructions"
               class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
@@ -158,7 +154,13 @@
             <button id="copyIPTop"
               class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
                      border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition">
-              <i class="fa-regular fa-copy"></i> Copy Server Address
+              <i class="fa-regular fa-copy"></i> Copy Java (WSS) Address
+            </button>
+
+            <button id="copyBedrockTop"
+              class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
+                     border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition">
+              <i class="fa-solid fa-mobile-screen-button"></i> Copy Bedrock IP
             </button>
 
             <button id="scrollToPortal"
@@ -167,37 +169,24 @@
               <i class="fa-solid fa-bolt"></i> Quick Launch
             </button>
           </div>
-
-          <!-- Mini badges -->
-          <div class="mt-5 flex flex-wrap gap-2 text-sm">
-            <span class="px-3 py-1.5 rounded-full border border-white/10 bg-white/5 font-bold text-white/75">
-              <i class="fa-solid fa-shield-heart text-gold mr-1"></i> Family-friendly
-            </span>
-            <span class="px-3 py-1.5 rounded-full border border-white/10 bg-white/5 font-bold text-white/75">
-              <i class="fa-solid fa-server text-brand mr-1"></i> EaglerHost Proxy
-            </span>
-            <span class="px-3 py-1.5 rounded-full border border-white/10 bg-white/5 font-bold text-white/75">
-              <i class="fa-solid fa-wifi text-brand mr-1"></i> Low-lag routing
-            </span>
-          </div>
         </div>
 
         <!-- Quick info card -->
         <aside class="md:col-span-2 glass2 rounded-3xl p-4 md:p-5 shadow-lg">
           <div class="space-y-3">
 
-            <!-- Address -->
+            <!-- WSS Address -->
             <div class="rounded-2xl border border-[rgba(157,78,221,.16)] bg-black/25 p-4">
               <div class="flex items-center justify-between gap-3">
                 <div class="text-white/70 font-semibold flex items-center gap-2">
-                  <i class="fa-solid fa-globe text-brand"></i> Server Address
+                  <i class="fa-solid fa-globe text-brand"></i> Java (Eagler) Address
                 </div>
                 <span class="text-xs font-black text-white/60 border border-white/10 bg-white/5 px-2 py-1 rounded-full">WSS</span>
               </div>
 
               <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
                 <span id="serverAddrText" class="font-mono font-bold text-sm md:text-base break-all">
-                  wss://PromiseLand-CKMC.eagler.host
+                  wss://promiselandmc.com/
                 </span>
 
                 <div class="flex gap-2">
@@ -215,11 +204,37 @@
               </div>
 
               <div class="mt-3 text-xs text-white/60">
-                Saved in Multiplayer → Add Server
+                Multiplayer → Add Server → paste this
               </div>
             </div>
 
-            <!-- Version + Tips -->
+            <!-- Bedrock Address -->
+            <div class="rounded-2xl border border-[rgba(157,78,221,.16)] bg-black/25 p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div class="text-white/70 font-semibold flex items-center gap-2">
+                  <i class="fa-solid fa-gamepad text-brand"></i> Bedrock Address
+                </div>
+                <span class="text-xs font-black text-white/60 border border-white/10 bg-white/5 px-2 py-1 rounded-full">UDP</span>
+              </div>
+
+              <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+                <span id="bedrockAddrText" class="font-mono font-bold text-sm md:text-base break-all">
+                  mc.promiselandmc.com:9888
+                </span>
+
+                <button id="copyBedrock"
+                  class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold
+                         border border-white/15 bg-white/5 hover:bg-white/10 transition">
+                  <i class="fa-regular fa-copy"></i> Copy
+                </button>
+              </div>
+
+              <div class="mt-3 text-xs text-white/60">
+                Server Address: mc.promiselandmc.com • Port: 9888
+              </div>
+            </div>
+
+            <!-- Version -->
             <div class="rounded-2xl border border-[rgba(157,78,221,.16)] bg-black/25 p-4 flex items-center justify-between gap-3">
               <div class="text-white/70 font-semibold flex items-center gap-2">
                 <i class="fa-solid fa-code-branch text-brand"></i> Client Version
@@ -234,20 +249,8 @@
                 <i class="fa-solid fa-circle-info text-brand"></i> Tip
               </div>
               <div class="mt-2">
-                Keep <span class="font-extrabold">wss://</span> in the address.
+                Java/Eagler needs <span class="font-extrabold">wss://</span>. Bedrock uses <span class="font-extrabold">mc.promiselandmc.com</span> + port <span class="font-extrabold">9888</span>.
               </div>
-            </div>
-
-            <!-- “Add Server” quick guide -->
-            <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div class="font-black flex items-center gap-2">
-                <i class="fa-solid fa-wand-magic-sparkles text-brand"></i> 10-second setup
-              </div>
-              <ol class="mt-2 text-white/75 text-sm leading-6 list-decimal pl-5">
-                <li>Open Portal</li>
-                <li>Multiplayer → Add Server</li>
-                <li>Paste address → Save → Join</li>
-              </ol>
             </div>
 
           </div>
@@ -280,9 +283,6 @@
             <div>
               <div class="font-black tracking-widest uppercase">Desktop Portal</div>
               <div class="text-white/85 mt-1">Launch <span class="font-mono">/game.html</span></div>
-              <div class="mt-2 text-xs text-white/70">
-                Best on Chrome / Edge
-              </div>
             </div>
           </div>
         </button>
@@ -300,9 +300,6 @@
             <div>
               <div class="font-black tracking-widest uppercase">Mobile Portal</div>
               <div class="text-white/85 mt-1">Launch <span class="font-mono">/mobile.html</span></div>
-              <div class="mt-2 text-xs text-white/70">
-                Tap + drag to look around
-              </div>
             </div>
           </div>
         </button>
@@ -324,99 +321,6 @@
       </div>
     </section>
 
-    <!-- FEATURES -->
-    <section class="mt-7 glass rounded-3xl p-6 md:p-7 shadow-lg">
-      <div class="flex items-end justify-between flex-wrap gap-3">
-        <div>
-          <h2 class="text-2xl font-black tracking-wide flex items-center gap-3">
-            <i class="fa-solid fa-star text-brand"></i> What We’re About
-          </h2>
-          <p class="text-white/70 mt-1">Good vibes, good people, and a space that points back to Jesus.</p>
-        </div>
-        <div class="text-sm text-white/65">
-          <i class="fa-solid fa-heart text-gold mr-1"></i> Keep it respectful in chat
-        </div>
-      </div>
-
-      <div class="mt-5 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)]
-                    hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
-          <i class="fa-solid fa-handshake-angle text-2xl text-brand"></i>
-          <h3 class="mt-3 font-black">Friendly Community</h3>
-          <p class="mt-2 text-white/70">Meet people, build together, and keep the chat respectful.</p>
-        </div>
-        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)]
-                    hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
-          <i class="fa-solid fa-dove text-2xl text-brand"></i>
-          <h3 class="mt-3 font-black">Jesus-Centered</h3>
-          <p class="mt-2 text-white/70">Faith is welcome here — we keep it uplifting and positive.</p>
-        </div>
-        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)]
-                    hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
-          <i class="fa-solid fa-campground text-2xl text-brand"></i>
-          <h3 class="mt-3 font-black">Survival Fun</h3>
-          <p class="mt-2 text-white/70">Explore, grind, build bases, and make memories.</p>
-        </div>
-        <div class="rounded-3xl p-5 border border-[rgba(157,78,221,.18)] bg-[rgba(24,24,46,.72)]
-                    hover:bg-[rgba(24,24,46,.86)] hover:-translate-y-1 transition">
-          <i class="fa-solid fa-people-group text-2xl text-brand"></i>
-          <h3 class="mt-3 font-black">Friendship First</h3>
-          <p class="mt-2 text-white/70">Play for fun — whether you’re new or experienced.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- GALLERY -->
-    <section class="mt-7 glass rounded-3xl p-6 md:p-7 shadow-lg">
-      <div class="flex items-end justify-between flex-wrap gap-3">
-        <div>
-          <h2 class="text-2xl font-black tracking-wide flex items-center gap-3">
-            <i class="fa-solid fa-camera text-brand"></i> Server Preview
-          </h2>
-          <p class="text-white/70 mt-1">Update these screenshots anytime.</p>
-        </div>
-
-        <button id="openGallery"
-          class="focus-ring inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-extrabold
-                 border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition">
-          <i class="fa-solid fa-up-right-and-down-left-from-center"></i> View Full
-        </button>
-      </div>
-
-      <div class="mt-5 grid md:grid-cols-2 gap-4">
-        <button class="shotBtn relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg text-left"
-                data-img="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/Spawn.png"
-                data-cap="Spawn">
-          <img class="w-full h-full object-cover scale-[1.02] hover:scale-[1.06] transition duration-300"
-               src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/Spawn.png" alt="Spawn area screenshot">
-          <div class="absolute left-3 bottom-3 px-3 py-2 rounded-2xl bg-black/50 border border-white/15 font-black">Spawn</div>
-        </button>
-
-        <button class="shotBtn relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg text-left"
-                data-img="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/growth.png"
-                data-cap="Growth">
-          <img class="w-full h-full object-cover scale-[1.02] hover:scale-[1.06] transition duration-300"
-               src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/growth.png" alt="Growth area screenshot">
-          <div class="absolute left-3 bottom-3 px-3 py-2 rounded-2xl bg-black/50 border border-white/15 font-black">Growth</div>
-        </button>
-
-        <button class="shotBtn relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg text-left"
-                data-img="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/World1.png"
-                data-cap="World">
-          <img class="w-full h-full object-cover scale-[1.02] hover:scale-[1.06] transition duration-300"
-               src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/World1.png" alt="World screenshot 1">
-          <div class="absolute left-3 bottom-3 px-3 py-2 rounded-2xl bg-black/50 border border-white/15 font-black">World</div>
-        </button>
-
-        <button class="shotBtn relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-video shadow-lg text-left"
-                data-img="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/World2.png"
-                data-cap="World">
-          <img class="w-full h-full object-cover scale-[1.02] hover:scale-[1.06] transition duration-300"
-               src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/World2.png" alt="World screenshot 2">
-          <div class="absolute left-3 bottom-3 px-3 py-2 rounded-2xl bg-black/50 border border-white/15 font-black">World</div>
-        </button>
-      </div>
-    </section>
   </main>
 
   <footer class="border-t border-[rgba(157,78,221,.22)] bg-[linear-gradient(180deg,rgba(7,7,16,.20),rgba(7,7,16,.70))]">
@@ -440,7 +344,7 @@
     <div class="w-full max-w-4xl glass rounded-3xl shadow-soft p-4 md:p-6" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="flex items-center justify-between gap-3 pb-3">
         <h3 id="modalTitle" class="text-xl md:text-2xl font-black flex items-center gap-2">
-          <i class="fa-solid fa-plug text-brand"></i> Server Connection Guide
+          <i class="fa-solid fa-plug text-brand"></i> Connection Guide
         </h3>
         <button id="closeModal"
           class="focus-ring w-11 h-11 rounded-2xl grid place-items-center border border-white/15 bg-white/5 hover:bg-white/10 transition"
@@ -452,18 +356,18 @@
       <div class="grid lg:grid-cols-2 gap-4">
         <div class="rounded-3xl border border-[rgba(157,78,221,.18)] bg-black/20 p-5">
           <div class="font-black flex items-center gap-2">
-            <i class="fa-solid fa-list-ol text-brand"></i> Steps
+            <i class="fa-solid fa-list-ol text-brand"></i> Java / Eagler (WSS)
           </div>
+
           <ol class="list-decimal pl-5 mt-3 text-white/85 leading-7">
             <li>Launch the portal (Desktop or Mobile).</li>
-            <li>Enter a username (remember it for next time).</li>
-            <li>Go to <span class="font-extrabold">Multiplayer</span> → <span class="font-extrabold">Add Server</span>.</li>
-            <li>Server Address: <span class="font-extrabold" id="modalAddr">wss://PromiseLand-CKMC.eagler.host</span></li>
-            <li>Save → Join.</li>
+            <li>Multiplayer → Add Server</li>
+            <li>Server Address: <span class="font-extrabold" id="modalAddr">wss://promiselandmc.com/</span></li>
+            <li>Save → Join</li>
           </ol>
 
           <div class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/12 bg-black/30 p-3">
-            <span id="modalAddrMono" class="font-mono font-extrabold text-sm md:text-base break-all">wss://PromiseLand-CKMC.eagler.host</span>
+            <span id="modalAddrMono" class="font-mono font-extrabold text-sm md:text-base break-all">wss://promiselandmc.com/</span>
             <button id="copyIPModal"
               class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold border border-white/15 bg-white/5 hover:bg-white/10 transition">
               <i class="fa-regular fa-copy"></i> Copy
@@ -471,59 +375,33 @@
           </div>
 
           <div class="mt-3 text-white/70 text-center">
-            Tip: Don’t remove <span class="font-extrabold">wss://</span> — that’s required.
+            Keep <span class="font-extrabold">wss://</span> in the address.
           </div>
         </div>
 
         <div class="rounded-3xl border border-[rgba(157,78,221,.18)] bg-black/20 p-5">
           <div class="font-black flex items-center gap-2">
-            <i class="fa-solid fa-images text-brand"></i> Visual Guide
+            <i class="fa-solid fa-gamepad text-brand"></i> Bedrock
           </div>
 
-          <div class="mt-3 grid grid-cols-2 gap-3">
-            <img class="w-full rounded-2xl border border-white/12" src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/step1.png" alt="Step 1 screenshot">
-            <img class="w-full rounded-2xl border border-white/12" src="https://raw.githubusercontent.com/lukasbonthy/GGG/refs/heads/main/bungee/web/step2.png" alt="Step 2 screenshot">
+          <ol class="list-decimal pl-5 mt-3 text-white/85 leading-7">
+            <li>Servers → Add Server</li>
+            <li>Address: <span class="font-extrabold" id="modalBedrockHost">mc.promiselandmc.com</span></li>
+            <li>Port: <span class="font-extrabold" id="modalBedrockPort">9888</span></li>
+            <li>Save → Join</li>
+          </ol>
+
+          <div class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/12 bg-black/30 p-3">
+            <span id="modalBedrockMono" class="font-mono font-extrabold text-sm md:text-base break-all">mc.promiselandmc.com:9888</span>
+            <button id="copyBedrockModal"
+              class="focus-ring inline-flex items-center gap-2 px-3 py-2 rounded-xl font-extrabold border border-white/15 bg-white/5 hover:bg-white/10 transition">
+              <i class="fa-regular fa-copy"></i> Copy
+            </button>
           </div>
 
-          <div class="mt-4 text-white/70 text-center">
-            Version: <span class="font-extrabold text-white" id="modalVersion">1.8.8</span>
+          <div class="mt-3 text-white/70 text-center text-sm">
+            Bedrock uses UDP — make sure your tunnel/DNS points to the Bedrock tunnel.
           </div>
-
-          <div class="mt-4 text-white/70 text-center text-sm">
-            If it fails, refresh and try again.
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Gallery -->
-  <div id="galleryModal" class="fixed inset-0 hidden place-items-center bg-black/80 z-[999] p-4" aria-hidden="true">
-    <div class="w-full max-w-5xl glass rounded-3xl shadow-soft p-4 md:p-6" role="dialog" aria-modal="true" aria-labelledby="galleryTitle">
-      <div class="flex items-center justify-between gap-3 pb-3">
-        <h3 id="galleryTitle" class="text-xl md:text-2xl font-black flex items-center gap-2">
-          <i class="fa-solid fa-camera text-brand"></i> Preview
-        </h3>
-        <button id="closeGallery"
-          class="focus-ring w-11 h-11 rounded-2xl grid place-items-center border border-white/15 bg-white/5 hover:bg-white/10 transition"
-          aria-label="Close">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <div class="rounded-3xl border border-white/10 bg-black/25 overflow-hidden">
-        <img id="galleryImg" class="w-full max-h-[70vh] object-contain" src="" alt="Preview image">
-      </div>
-
-      <div class="mt-3 flex items-center justify-between gap-3 flex-wrap">
-        <div class="font-black text-white/90" id="galleryCap">Spawn</div>
-        <div class="flex gap-2">
-          <button id="prevImg" class="focus-ring px-4 py-2 rounded-2xl border border-white/15 bg-white/5 hover:bg-white/10 font-extrabold transition">
-            <i class="fa-solid fa-chevron-left"></i>
-          </button>
-          <button id="nextImg" class="focus-ring px-4 py-2 rounded-2xl border border-white/15 bg-white/5 hover:bg-white/10 font-extrabold transition">
-            <i class="fa-solid fa-chevron-right"></i>
-          </button>
         </div>
       </div>
     </div>
@@ -546,12 +424,16 @@
       name: "PromiseLand-CKMC",
       tagline: "A chill, Jesus-centered Minecraft community focused on fun, friendship, and faith.",
       version: "1.8.8",
-      address: "wss://PromiseLand-CKMC.eagler.host",
+      address: "wss://promiselandmc.com/",
+
+      // Bedrock info
+      bedrockHost: "mc.promiselandmc.com",
+      bedrockPort: 9888,
+
       discord: "https://discord.gg/EVeQ3RssqX",
       youtube: "https://www.youtube.com/@SwiflyNetwork",
       desktopPortalPath: "/game.html",
       mobilePortalPath: "/mobile.html",
-      // Optional: a health endpoint on your proxy (recommended). Keep "/health" on same domain.
       healthPath: "/health"
     };
 
@@ -574,17 +456,23 @@
       $("youtubeLink").classList.add("hidden");
     }
 
-    // Address + version
+    // WSS address + version
     setText("serverAddrText", SERVER.address);
     setText("modalAddr", SERVER.address);
     setText("modalAddrMono", SERVER.address);
-    setText("modalVersion", SERVER.version);
+    setText("serverVersionPill", SERVER.version);
     setText("desktopVersionTag", "v" + SERVER.version);
     setText("mobileVersionTag", "v" + SERVER.version);
-    setText("serverVersionPill", SERVER.version);
     setText("year", new Date().getFullYear());
 
-    // Open WSS in new tab (useful to see if browser blocks)
+    // Bedrock
+    const bedrockFull = `${SERVER.bedrockHost}:${SERVER.bedrockPort}`;
+    setText("bedrockAddrText", bedrockFull);
+    setText("modalBedrockHost", SERVER.bedrockHost);
+    setText("modalBedrockPort", String(SERVER.bedrockPort));
+    setText("modalBedrockMono", bedrockFull);
+
+    // Open WSS in new tab
     $("openInNew").addEventListener("click", () => {
       window.open(SERVER.address, "_blank", "noopener,noreferrer");
     });
@@ -602,7 +490,7 @@
     $("launchDesktop").addEventListener("click", () => launch(SERVER.desktopPortalPath));
     $("launchMobile").addEventListener("click", () => launch(SERVER.mobilePortalPath));
 
-    // Modal (instructions)
+    // Modal
     const modal = $("modal");
     function openModal(){
       modal.classList.remove("hidden");
@@ -618,7 +506,7 @@
     $("openInstructions2").addEventListener("click", openModal);
     $("closeModal").addEventListener("click", closeModal);
     modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
-    window.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeModal(); closeGallery(); } });
+    window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
     // Toast
     const toast = $("toast");
@@ -651,18 +539,34 @@
       }
     }
 
+    // Copy buttons
     $("copyIP").addEventListener("click", () => copyText(SERVER.address));
     $("copyIPModal").addEventListener("click", () => copyText(SERVER.address));
     $("copyIPTop").addEventListener("click", () => copyText(SERVER.address));
 
-    // Copy invite text
+    $("copyBedrock").addEventListener("click", () => copyText(bedrockFull));
+    $("copyBedrockModal").addEventListener("click", () => copyText(bedrockFull));
+    $("copyBedrockTop").addEventListener("click", () => copyText(bedrockFull));
+
+    // Copy invite text (includes both)
     $("copyShort").addEventListener("click", () => {
-      const msg = `${SERVER.name} — ${SERVER.tagline}\nAdd Server Address:\n${SERVER.address}\nVersion: ${SERVER.version}\nDiscord: ${SERVER.discord}`;
+      const msg =
+`${SERVER.name} — ${SERVER.tagline}
+
+Java / Eagler:
+${SERVER.address}
+Version: ${SERVER.version}
+
+Bedrock:
+${SERVER.bedrockHost}
+Port: ${SERVER.bedrockPort}
+
+Discord: ${SERVER.discord}`;
       copyText(msg);
       showToast("Invite copied!");
     });
 
-    // Status ping (checks your own /health, not the upstream)
+    // Status ping (checks your own /health)
     async function checkStatus(){
       const dot = $("statusDot");
       const text = $("statusText");
@@ -679,7 +583,7 @@
     checkStatus();
     setInterval(checkStatus, 15000);
 
-    // Effects toggle (reduces motion + disables blobs)
+    // Effects toggle
     const toggle = $("themeToggle");
     let effectsOn = true;
     toggle.addEventListener("click", () => {
@@ -687,46 +591,6 @@
       document.querySelectorAll("[aria-hidden='true']")[0].style.display = effectsOn ? "" : "none";
       showToast(effectsOn ? "Effects on" : "Effects off");
     });
-
-    // Gallery modal
-    const galleryModal = $("galleryModal");
-    const galleryImg = $("galleryImg");
-    const galleryCap = $("galleryCap");
-    const closeGalleryBtn = $("closeGallery");
-    const openGalleryBtn = $("openGallery");
-    const prevBtn = $("prevImg");
-    const nextBtn = $("nextImg");
-
-    const shots = Array.from(document.querySelectorAll(".shotBtn")).map(btn => ({
-      src: btn.getAttribute("data-img"),
-      cap: btn.getAttribute("data-cap")
-    }));
-    let shotIndex = 0;
-
-    function openGalleryAt(i){
-      shotIndex = (i + shots.length) % shots.length;
-      galleryImg.src = shots[shotIndex].src;
-      galleryCap.textContent = shots[shotIndex].cap;
-      galleryModal.classList.remove("hidden");
-      galleryModal.classList.add("grid");
-      galleryModal.setAttribute("aria-hidden", "false");
-    }
-    function closeGallery(){
-      galleryModal.classList.add("hidden");
-      galleryModal.classList.remove("grid");
-      galleryModal.setAttribute("aria-hidden", "true");
-    }
-
-    document.querySelectorAll(".shotBtn").forEach((btn, i) => {
-      btn.addEventListener("click", () => openGalleryAt(i));
-    });
-
-    openGalleryBtn.addEventListener("click", () => openGalleryAt(0));
-    closeGalleryBtn.addEventListener("click", closeGallery);
-    galleryModal.addEventListener("click", (e) => { if (e.target === galleryModal) closeGallery(); });
-
-    prevBtn.addEventListener("click", () => openGalleryAt(shotIndex - 1));
-    nextBtn.addEventListener("click", () => openGalleryAt(shotIndex + 1));
   </script>
 </body>
 </html>
