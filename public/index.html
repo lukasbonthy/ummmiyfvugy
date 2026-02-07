@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- Preview + icons -->
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -16,12 +17,10 @@
   <meta property="og:title" content="PromiseLand-CKMC | Minecraft Portal">
   <meta property="og:description" content="Chill, Jesus-centered Minecraft community. Join via Eagler (WSS), Java, or Bedrock. Fun • Friendship • Faith.">
   <meta property="og:url" content="https://promiselandmc.com/">
-
-
   <meta property="og:image" content="https://promiselandmc.com/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
- 
+
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="PromiseLand-CKMC | Minecraft Portal">
   <meta name="twitter:description" content="Chill, Jesus-centered Minecraft community. Eagler (WSS) • Java • Bedrock.">
@@ -57,11 +56,13 @@
           },
           keyframes: {
             floaty: { "0%,100%": { transform: "translateY(0px)" }, "50%": { transform: "translateY(-8px)" } },
-            shimmer: { "0%": { backgroundPosition: "0% 50%" }, "100%": { backgroundPosition: "100% 50%" } }
+            shimmer: { "0%": { backgroundPosition: "0% 50%" }, "100%": { backgroundPosition: "100% 50%" } },
+            pulseSoft: { "0%,100%": { opacity: .35 }, "50%": { opacity: .6 } }
           },
           animation: {
             floaty: "floaty 4.8s ease-in-out infinite",
-            shimmer: "shimmer 10s ease-in-out infinite"
+            shimmer: "shimmer 10s ease-in-out infinite",
+            pulseSoft: "pulseSoft 4.6s ease-in-out infinite"
           }
         }
       }
@@ -82,27 +83,34 @@
       --stroke: rgba(255,255,255,.12);
       --stroke2: rgba(255,255,255,.18);
       --blur: 14px;
+      --mx: 50vw;
+      --my: 40vh;
     }
+
     .glass{
       background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.04));
       border: 1px solid var(--stroke);
       backdrop-filter: blur(var(--blur));
+      box-shadow: 0 0 0 1px rgba(0,0,0,.18) inset;
     }
     .glass-strong{
       background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.05));
       border: 1px solid var(--stroke2);
       backdrop-filter: blur(calc(var(--blur) + 2px));
+      box-shadow: 0 0 0 1px rgba(0,0,0,.20) inset;
     }
+
     .grad-border{
       position: relative;
       border-radius: 24px;
+      overflow: hidden;
     }
     .grad-border::before{
       content:"";
       position:absolute; inset:0;
       padding:1px;
       border-radius: 24px;
-      background: linear-gradient(135deg, rgba(255,255,255,.20), rgba(255,213,74,.20), rgba(96,165,250,.18));
+      background: linear-gradient(135deg, rgba(255,255,255,.22), rgba(255,213,74,.20), rgba(96,165,250,.18), rgba(255,255,255,.14));
       -webkit-mask:
         linear-gradient(#000 0 0) content-box,
         linear-gradient(#000 0 0);
@@ -110,47 +118,120 @@
       mask-composite: exclude;
       pointer-events:none;
     }
+
     .focus-ring:focus-visible{
       outline: 3px solid rgba(255, 213, 74, .55);
       outline-offset: 3px;
       border-radius: 16px;
     }
+
     .btn{
       border: 1px solid rgba(255,255,255,.14);
       background: rgba(255,255,255,.06);
-      transition: transform .18s ease, background .18s ease, border-color .18s ease;
+      transition: transform .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
     }
-    .btn:hover{ transform: translateY(-2px); background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.18); }
+    .btn:hover{
+      transform: translateY(-2px);
+      background: rgba(255,255,255,.09);
+      border-color: rgba(255,255,255,.18);
+      box-shadow: 0 18px 34px rgba(0,0,0,.34);
+    }
     .btn2{
       border: 1px solid rgba(255,213,74,.28);
       background: rgba(255,213,74,.10);
-      transition: transform .18s ease, background .18s ease, border-color .18s ease;
+      transition: transform .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
     }
-    .btn2:hover{ transform: translateY(-2px); background: rgba(255,213,74,.14); border-color: rgba(255,213,74,.36); }
+    .btn2:hover{
+      transform: translateY(-2px);
+      background: rgba(255,213,74,.14);
+      border-color: rgba(255,213,74,.36);
+      box-shadow: 0 18px 34px rgba(0,0,0,.34);
+    }
     .chip{
       border: 1px solid rgba(255,255,255,.12);
       background: rgba(255,255,255,.05);
     }
-    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .mono{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    /* Better background effects */
     .tinygrid{
       background-image:
         linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px);
       background-size: 36px 36px;
       mask-image: radial-gradient(ellipse at center, black 40%, transparent 78%);
-      opacity: .22;
+      opacity: .18;
     }
+    .noise{
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.28'/%3E%3C/svg%3E");
+      opacity: .10;
+      mix-blend-mode: overlay;
+    }
+    .spotlight{
+      background: radial-gradient(600px 420px at var(--mx) var(--my),
+        rgba(255,213,74,.14),
+        rgba(96,165,250,.10) 40%,
+        transparent 70%);
+      opacity: .85;
+      transition: opacity .25s ease;
+    }
+
+    /* Premium hover sheen */
+    .sheen{ position: relative; overflow: hidden; }
+    .sheen::after{
+      content:"";
+      position:absolute;
+      top:-60%;
+      left:-40%;
+      width: 45%;
+      height: 220%;
+      transform: rotate(18deg);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+      opacity:0;
+      transition: opacity .25s ease, transform .60s ease;
+      pointer-events:none;
+    }
+    .sheen:hover::after{
+      opacity:1;
+      transform: translateX(240%) rotate(18deg);
+    }
+
+    /* Slight 3D lift on cards */
+    .liftCard{
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+      transform: translateZ(0);
+    }
+    .liftCard:hover{
+      transform: translateY(-3px);
+      border-color: rgba(255,255,255,.18);
+      box-shadow: 0 22px 44px rgba(0,0,0,.42);
+    }
+
+    /* Modal pop */
+    .popIn{
+      animation: popIn .16s ease-out both;
+    }
+    @keyframes popIn{
+      from{ transform: translateY(10px) scale(.98); opacity: 0; }
+      to{ transform: translateY(0) scale(1); opacity: 1; }
+    }
+
     ::-webkit-scrollbar{ height:10px; width:10px; }
     ::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.18); border-radius: 999px; }
     ::-webkit-scrollbar-track{ background: rgba(255,255,255,.04); }
   </style>
 </head>
 
-<body class="font-outfit text-white min-h-screen overflow-x-hidden bg-[radial-gradient(1100px_700px_at_12%_10%,rgba(255,213,74,.14),transparent_55%),radial-gradient(900px_650px_at_88%_86%,rgba(96,165,250,.14),transparent_55%),linear-gradient(180deg,#070A12,#0B1020)]">
+<body class="font-outfit text-white min-h-screen overflow-x-hidden
+  bg-[radial-gradient(1100px_700px_at_12%_10%,rgba(255,213,74,.14),transparent_55%),radial-gradient(900px_650px_at_88%_86%,rgba(96,165,250,.14),transparent_55%),linear-gradient(180deg,#070A12,#0B1020)]">
 
   <!-- Ambient -->
   <div id="ambient" aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10">
+    <div class="absolute inset-0 noise"></div>
     <div class="absolute inset-0 tinygrid"></div>
+    <div id="spotlight" class="absolute inset-0 spotlight"></div>
     <div class="absolute -top-28 -left-28 w-[520px] h-[520px] rounded-full bg-[rgba(255,213,74,.16)] blur-3xl animate-floaty"></div>
     <div class="absolute -bottom-32 -right-24 w-[620px] h-[620px] rounded-full bg-[rgba(96,165,250,.14)] blur-3xl animate-floaty [animation-delay:1.3s]"></div>
   </div>
@@ -176,15 +257,15 @@
 
       <nav class="flex items-center gap-2" aria-label="Links">
         <a id="discordLink" href="#" target="_blank" rel="noopener" title="Discord"
-           class="focus-ring w-11 h-11 rounded-full grid place-items-center border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition shadow-lg">
+           class="focus-ring sheen w-11 h-11 rounded-full grid place-items-center border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition shadow-lg">
           <i class="fa-brands fa-discord"></i>
         </a>
         <a id="youtubeLink" href="#" target="_blank" rel="noopener" title="YouTube"
-           class="focus-ring w-11 h-11 rounded-full grid place-items-center border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition shadow-lg">
+           class="focus-ring sheen w-11 h-11 rounded-full grid place-items-center border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition shadow-lg">
           <i class="fa-brands fa-youtube"></i>
         </a>
         <button id="effectsToggle" title="Toggle background effects"
-          class="focus-ring w-11 h-11 rounded-full grid place-items-center border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition shadow-lg">
+          class="focus-ring sheen w-11 h-11 rounded-full grid place-items-center border border-white/15 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition shadow-lg">
           <i class="fa-solid fa-wand-magic-sparkles"></i>
         </button>
       </nav>
@@ -198,7 +279,7 @@
       <div class="glass-strong rounded-3xl shadow-soft overflow-hidden p-6 md:p-8 relative">
         <div aria-hidden="true" class="pointer-events-none absolute -inset-px rounded-3xl
              bg-[linear-gradient(90deg,rgba(255,255,255,.10),rgba(255,213,74,.12),rgba(96,165,250,.10),rgba(255,255,255,.10))]
-             opacity-30 blur-xl"></div>
+             opacity-30 blur-xl animate-pulseSoft"></div>
 
         <div class="relative grid lg:grid-cols-5 gap-6 items-start">
           <div class="lg:col-span-3">
@@ -236,19 +317,19 @@
             </div>
 
             <div class="mt-6 grid sm:grid-cols-2 gap-3">
-              <button id="scrollToConnect" class="focus-ring btn rounded-2xl px-4 py-3 font-extrabold flex items-center justify-center gap-2 shadow-lift">
+              <button id="scrollToConnect" class="focus-ring sheen btn rounded-2xl px-4 py-3 font-extrabold flex items-center justify-center gap-2 shadow-lift">
                 <i class="fa-solid fa-bolt"></i> Quick Connect
               </button>
-              <button id="openGuide" class="focus-ring btn2 rounded-2xl px-4 py-3 font-extrabold flex items-center justify-center gap-2 shadow-lift">
+              <button id="openGuide" class="focus-ring sheen btn2 rounded-2xl px-4 py-3 font-extrabold flex items-center justify-center gap-2 shadow-lift">
                 <i class="fa-solid fa-plug"></i> Connection Guide
               </button>
             </div>
 
             <div class="mt-3 flex flex-wrap gap-3">
-              <button id="copyInvite" class="focus-ring btn rounded-2xl px-4 py-3 font-extrabold flex items-center gap-2">
+              <button id="copyInvite" class="focus-ring sheen btn rounded-2xl px-4 py-3 font-extrabold flex items-center gap-2">
                 <i class="fa-solid fa-link"></i> Copy Invite Text
               </button>
-              <button id="scrollToPortal" class="focus-ring btn rounded-2xl px-4 py-3 font-extrabold flex items-center gap-2">
+              <button id="scrollToPortal" class="focus-ring sheen btn rounded-2xl px-4 py-3 font-extrabold flex items-center gap-2">
                 <i class="fa-solid fa-door-open"></i> Portal Launch
               </button>
             </div>
@@ -256,7 +337,7 @@
 
           <!-- Right panel -->
           <aside class="lg:col-span-2">
-            <div class="glass rounded-3xl p-5 border border-white/10">
+            <div class="glass rounded-3xl p-5 border border-white/10 liftCard">
               <div class="flex items-center justify-between gap-3">
                 <div class="font-black tracking-wide text-lg flex items-center gap-2">
                   <i class="fa-solid fa-satellite-dish text-gold"></i> Connect
@@ -269,7 +350,7 @@
               <div class="mt-4 grid gap-3" id="connectSection">
 
                 <!-- Eagler -->
-                <div class="glass rounded-2xl p-4 border border-white/10">
+                <div class="glass rounded-2xl p-4 border border-white/10 liftCard">
                   <div class="flex items-center justify-between gap-3">
                     <div class="font-extrabold text-white/85 flex items-center gap-2">
                       <i class="fa-solid fa-globe text-sky"></i> Eagler (WSS)
@@ -279,19 +360,22 @@
                   <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
                     <span id="wssText" class="mono font-extrabold text-sm md:text-base break-all">wss://promiselandmc.com/</span>
                     <div class="flex gap-2">
-                      <button id="copyWSS" class="focus-ring btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
+                      <button id="copyWSS" class="focus-ring sheen btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
                         <i class="fa-regular fa-copy"></i> Copy
                       </button>
-                      <button id="openSite" class="focus-ring btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2" title="Open website">
-                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+
+                      <!-- THIS BUTTON NOW OPENS THE PORTAL POPUP -->
+                      <button id="openSite" class="focus-ring sheen btn2 rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2" title="Open portal launch">
+                        <i class="fa-solid fa-rocket"></i>
+                        <span class="hidden sm:inline">Launch</span>
                       </button>
                     </div>
                   </div>
-                  <div class="mt-2 text-xs text-white/60">Multiplayer → Add Server → paste the WSS address</div>
+                  <div class="mt-2 text-xs text-white/60">Click Launch to open the portal, then add the WSS inside Multiplayer.</div>
                 </div>
 
                 <!-- Java -->
-                <div class="glass rounded-2xl p-4 border border-white/10">
+                <div class="glass rounded-2xl p-4 border border-white/10 liftCard">
                   <div class="flex items-center justify-between gap-3">
                     <div class="font-extrabold text-white/85 flex items-center gap-2">
                       <i class="fa-solid fa-server text-gold"></i> Java (Launcher)
@@ -302,7 +386,7 @@
                   </div>
                   <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
                     <span id="javaText" class="mono font-extrabold text-sm md:text-base break-all">promiselandmc.com</span>
-                    <button id="copyJava" class="focus-ring btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
+                    <button id="copyJava" class="focus-ring sheen btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
                       <i class="fa-regular fa-copy"></i> Copy
                     </button>
                   </div>
@@ -310,7 +394,7 @@
                 </div>
 
                 <!-- Bedrock -->
-                <div class="glass rounded-2xl p-4 border border-white/10">
+                <div class="glass rounded-2xl p-4 border border-white/10 liftCard">
                   <div class="flex items-center justify-between gap-3">
                     <div class="font-extrabold text-white/85 flex items-center gap-2">
                       <i class="fa-solid fa-gamepad text-mint"></i> Bedrock
@@ -319,7 +403,7 @@
                   </div>
                   <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
                     <span id="bedrockText" class="mono font-extrabold text-sm md:text-base break-all">mc.promiselandmc.com:9888</span>
-                    <button id="copyBedrock" class="focus-ring btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
+                    <button id="copyBedrock" class="focus-ring sheen btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
                       <i class="fa-regular fa-copy"></i> Copy
                     </button>
                   </div>
@@ -336,9 +420,9 @@
       </div>
     </section>
 
-    <!-- PORTAL -->
+    <!-- PORTAL SECTION (still exists for normal scrolling) -->
     <section id="portalSection" class="mt-7 grad-border">
-      <div class="glass rounded-3xl p-6 md:p-7 shadow-lg">
+      <div class="glass rounded-3xl p-6 md:p-7 shadow-lg liftCard">
         <div class="flex items-end justify-between flex-wrap gap-3">
           <div>
             <h2 class="text-2xl font-black tracking-wide flex items-center gap-3">
@@ -350,7 +434,7 @@
 
         <div class="mt-5 grid lg:grid-cols-2 gap-4">
           <button id="launchDesktop"
-            class="focus-ring btn w-full rounded-3xl p-5 text-left min-h-[112px] shadow-lift">
+            class="focus-ring sheen btn w-full rounded-3xl p-5 text-left min-h-[112px] shadow-lift">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-4">
                 <div class="w-12 h-12 rounded-2xl grid place-items-center border border-white/15 bg-white/5">
@@ -366,7 +450,7 @@
           </button>
 
           <button id="launchMobile"
-            class="focus-ring btn w-full rounded-3xl p-5 text-left min-h-[112px] shadow-lift">
+            class="focus-ring sheen btn w-full rounded-3xl p-5 text-left min-h-[112px] shadow-lift">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-4">
                 <div class="w-12 h-12 rounded-2xl grid place-items-center border border-white/15 bg-white/5">
@@ -384,11 +468,11 @@
 
         <div class="mt-4 flex flex-wrap gap-3">
           <button id="openGuide2"
-            class="focus-ring btn2 rounded-2xl px-4 py-3 font-extrabold inline-flex items-center gap-2">
+            class="focus-ring sheen btn2 rounded-2xl px-4 py-3 font-extrabold inline-flex items-center gap-2">
             <i class="fa-solid fa-circle-question"></i> How do I connect?
           </button>
           <button id="copyAllThree"
-            class="focus-ring btn rounded-2xl px-4 py-3 font-extrabold inline-flex items-center gap-2">
+            class="focus-ring sheen btn rounded-2xl px-4 py-3 font-extrabold inline-flex items-center gap-2">
             <i class="fa-solid fa-copy"></i> Copy All Addresses
           </button>
         </div>
@@ -405,29 +489,28 @@
       </div>
 
       <a id="discordFooter" href="#" target="_blank" rel="noopener"
-         class="focus-ring btn2 inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-black shadow-lg">
+         class="focus-ring sheen btn2 inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-black shadow-lg">
         <i class="fa-brands fa-discord"></i> Join the Discord
       </a>
     </div>
   </footer>
 
-  <!-- Modal -->
+  <!-- Connection Guide Modal -->
   <div id="modal" class="fixed inset-0 hidden place-items-center bg-black/75 z-[999] p-4" aria-hidden="true">
-    <div class="w-full max-w-4xl glass-strong rounded-3xl shadow-soft p-4 md:p-6" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="w-full max-w-4xl glass-strong rounded-3xl shadow-soft p-4 md:p-6 popIn" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="flex items-center justify-between gap-3 pb-3">
         <h3 id="modalTitle" class="text-xl md:text-2xl font-black flex items-center gap-2">
           <i class="fa-solid fa-plug text-gold"></i> Connection Guide
         </h3>
         <button id="closeModal"
-          class="focus-ring btn w-11 h-11 rounded-2xl grid place-items-center"
+          class="focus-ring sheen btn w-11 h-11 rounded-2xl grid place-items-center"
           aria-label="Close">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
 
       <div class="grid lg:grid-cols-3 gap-4">
-        <!-- Eagler -->
-        <div class="glass rounded-3xl border border-white/10 p-5">
+        <div class="glass rounded-3xl border border-white/10 p-5 liftCard">
           <div class="font-black flex items-center gap-2">
             <i class="fa-solid fa-globe text-sky"></i> Eagler (Browser)
           </div>
@@ -439,14 +522,13 @@
           </ol>
           <div class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/12 bg-black/30 p-3">
             <span id="modalWSSMono" class="mono font-extrabold text-sm break-all">wss://promiselandmc.com/</span>
-            <button id="copyWSSModal" class="focus-ring btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
+            <button id="copyWSSModal" class="focus-ring sheen btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
               <i class="fa-regular fa-copy"></i> Copy
             </button>
           </div>
         </div>
 
-        <!-- Java -->
-        <div class="glass rounded-3xl border border-white/10 p-5">
+        <div class="glass rounded-3xl border border-white/10 p-5 liftCard">
           <div class="font-black flex items-center gap-2">
             <i class="fa-solid fa-server text-gold"></i> Java (Launcher)
           </div>
@@ -458,14 +540,13 @@
           </ol>
           <div class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/12 bg-black/30 p-3">
             <span id="modalJavaMono" class="mono font-extrabold text-sm break-all">promiselandmc.com</span>
-            <button id="copyJavaModal" class="focus-ring btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
+            <button id="copyJavaModal" class="focus-ring sheen btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
               <i class="fa-regular fa-copy"></i> Copy
             </button>
           </div>
         </div>
 
-        <!-- Bedrock -->
-        <div class="glass rounded-3xl border border-white/10 p-5">
+        <div class="glass rounded-3xl border border-white/10 p-5 liftCard">
           <div class="font-black flex items-center gap-2">
             <i class="fa-solid fa-gamepad text-mint"></i> Bedrock
           </div>
@@ -477,7 +558,7 @@
           </ol>
           <div class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/12 bg-black/30 p-3">
             <span id="modalBedrockMono" class="mono font-extrabold text-sm break-all">mc.promiselandmc.com:9888</span>
-            <button id="copyBedrockModal" class="focus-ring btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
+            <button id="copyBedrockModal" class="focus-ring sheen btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
               <i class="fa-regular fa-copy"></i> Copy
             </button>
           </div>
@@ -485,10 +566,84 @@
       </div>
 
       <div class="mt-4 flex flex-wrap gap-3">
-        <button id="copyEverythingModal" class="focus-ring btn2 rounded-2xl px-4 py-3 font-extrabold inline-flex items-center gap-2">
+        <button id="copyEverythingModal" class="focus-ring sheen btn2 rounded-2xl px-4 py-3 font-extrabold inline-flex items-center gap-2">
           <i class="fa-solid fa-layer-group"></i> Copy Full Invite
         </button>
-        <button id="closeModal2" class="focus-ring btn rounded-2xl px-4 py-3 font-extrabold inline-flex items-center gap-2">
+        <button id="closeModal2" class="focus-ring sheen btn rounded-2xl px-4 py-3 font-extrabold inline-flex items-center gap-2">
+          <i class="fa-solid fa-check"></i> Done
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Portal Launch Popup Modal (opened by the Eagler Launch button) -->
+  <div id="portalModal" class="fixed inset-0 hidden place-items-center bg-black/75 z-[999] p-4" aria-hidden="true">
+    <div class="w-full max-w-3xl glass-strong rounded-3xl shadow-soft p-4 md:p-6 popIn" role="dialog" aria-modal="true" aria-labelledby="portalModalTitle">
+      <div class="flex items-center justify-between gap-3 pb-3">
+        <h3 id="portalModalTitle" class="text-xl md:text-2xl font-black flex items-center gap-2">
+          <i class="fa-solid fa-rocket text-gold"></i> Portal Launch
+        </h3>
+        <button id="closePortalModal"
+          class="focus-ring sheen btn w-11 h-11 rounded-2xl grid place-items-center"
+          aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="rounded-2xl border border-white/10 bg-black/20 p-4">
+        <div class="text-white/80">
+          Pick a portal, then add the server in Multiplayer using:
+          <span class="mono font-extrabold" id="portalWSSInline">wss://promiselandmc.com/</span>
+        </div>
+
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button id="copyWSSPortalModal"
+            class="focus-ring sheen btn2 rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
+            <i class="fa-regular fa-copy"></i> Copy WSS
+          </button>
+          <button id="openGuideFromPortalModal"
+            class="focus-ring sheen btn rounded-xl px-3 py-2 font-extrabold inline-flex items-center gap-2">
+            <i class="fa-solid fa-circle-question"></i> Guide
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-4 grid md:grid-cols-2 gap-4">
+        <button id="launchDesktopModal"
+          class="focus-ring sheen btn w-full rounded-3xl p-5 text-left min-h-[112px] shadow-lift liftCard">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-2xl grid place-items-center border border-white/15 bg-white/5">
+                <i class="fa-solid fa-desktop text-xl drop-shadow"></i>
+              </div>
+              <div>
+                <div class="font-black tracking-widest uppercase">Desktop</div>
+                <div class="text-white/80 mt-1">Open <span class="mono font-extrabold">/game.html</span></div>
+              </div>
+            </div>
+            <span id="desktopVersionTag2" class="px-3 py-1 rounded-full chip text-sm font-black">v1.8.8</span>
+          </div>
+        </button>
+
+        <button id="launchMobileModal"
+          class="focus-ring sheen btn w-full rounded-3xl p-5 text-left min-h-[112px] shadow-lift liftCard">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-2xl grid place-items-center border border-white/15 bg-white/5">
+                <i class="fa-solid fa-mobile-screen-button text-xl drop-shadow"></i>
+              </div>
+              <div>
+                <div class="font-black tracking-widest uppercase">Mobile</div>
+                <div class="text-white/80 mt-1">Open <span class="mono font-extrabold">/mobile.html</span></div>
+              </div>
+            </div>
+            <span id="mobileVersionTag2" class="px-3 py-1 rounded-full chip text-sm font-black">v1.8.8</span>
+          </div>
+        </button>
+      </div>
+
+      <div class="mt-4 flex justify-end gap-2">
+        <button id="closePortalModal2" class="focus-ring sheen btn rounded-2xl px-4 py-3 font-extrabold inline-flex items-center gap-2">
           <i class="fa-solid fa-check"></i> Done
         </button>
       </div>
@@ -505,32 +660,19 @@
   </div>
 
   <script>
-    /*********************************************************
-     * EDIT THESE VALUES
-     *********************************************************/
     const SERVER = {
       name: "PromiseLand-CKMC",
       tagline: "A chill, Jesus-centered Minecraft community focused on fun, friendship, and faith.",
       version: "1.8.8",
-
-      // Eagler browser (WSS)
       wss: "wss://promiselandmc.com/",
-
-      // Java (Launcher)
       javaHost: "promiselandmc.com",
       javaPort: 25565,
-
-      // Bedrock
       bedrockHost: "mc.promiselandmc.com",
       bedrockPort: 9888,
-
       discord: "https://discord.gg/EVeQ3RssqX",
       youtube: "https://www.youtube.com/@SwiflyNetwork",
-
       desktopPortalPath: "/game.html",
       mobilePortalPath: "/mobile.html",
-
-      // Proxy health endpoint on YOUR portal site
       healthPath: "/health"
     };
 
@@ -538,26 +680,24 @@
     const setText = (id, v) => { const el = $(id); if (el) el.textContent = v; };
     const setHref = (id, v) => { const el = $(id); if (el) el.href = v; };
 
-    // Derived strings
     const javaFull =
       SERVER.javaHost
         ? ((SERVER.javaPort && SERVER.javaPort !== 25565) ? `${SERVER.javaHost}:${SERVER.javaPort}` : SERVER.javaHost)
         : "";
     const bedrockFull = `${SERVER.bedrockHost}:${SERVER.bedrockPort}`;
 
-    // Brand
     setText("brandName", SERVER.name);
     setText("footerName", SERVER.name);
     setText("taglineText", SERVER.tagline);
 
-    // Version
     setText("serverVersionPill", SERVER.version);
     setText("verChip", SERVER.version);
     setText("desktopVersionTag", "v" + SERVER.version);
     setText("mobileVersionTag", "v" + SERVER.version);
+    setText("desktopVersionTag2", "v" + SERVER.version);
+    setText("mobileVersionTag2", "v" + SERVER.version);
     setText("year", new Date().getFullYear());
 
-    // Links
     setHref("discordLink", SERVER.discord);
     setHref("discordFooter", SERVER.discord);
 
@@ -567,7 +707,6 @@
       $("youtubeLink").classList.add("hidden");
     }
 
-    // Fill connect text
     setText("wssText", SERVER.wss);
     setText("javaText", javaFull);
     setText("javaPortPill", String(SERVER.javaPort || 25565));
@@ -575,7 +714,6 @@
     setText("bedrockHostTip", SERVER.bedrockHost);
     setText("bedrockPortTip", String(SERVER.bedrockPort));
 
-    // Modal fill
     setText("modalWSS", SERVER.wss);
     setText("modalWSSMono", SERVER.wss);
     setText("modalJava", javaFull);
@@ -584,7 +722,8 @@
     setText("modalBedrockPort", String(SERVER.bedrockPort));
     setText("modalBedrockMono", bedrockFull);
 
-    // Smooth scroll
+    setText("portalWSSInline", SERVER.wss);
+
     $("scrollToConnect").addEventListener("click", () => {
       $("connectSection").scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -592,40 +731,15 @@
       $("portalSection").scrollIntoView({ behavior: "smooth", block: "start" });
     });
 
-    // Launch portal pages
     function launch(path){
       localStorage.setItem("game", "true");
       window.location.href = path;
     }
     $("launchDesktop").addEventListener("click", () => launch(SERVER.desktopPortalPath));
     $("launchMobile").addEventListener("click", () => launch(SERVER.mobilePortalPath));
+    $("launchDesktopModal").addEventListener("click", () => launch(SERVER.desktopPortalPath));
+    $("launchMobileModal").addEventListener("click", () => launch(SERVER.mobilePortalPath));
 
-    // Open website (derived from WSS -> HTTPS)
-    $("openSite").addEventListener("click", () => {
-      const url = (SERVER.wss || "").replace(/^wss:\/\//i, "https://").replace(/^ws:\/\//i, "http://");
-      window.open(url || "/", "_blank", "noopener,noreferrer");
-    });
-
-    // Modal
-    const modal = $("modal");
-    function openModal(){
-      modal.classList.remove("hidden");
-      modal.classList.add("grid");
-      modal.setAttribute("aria-hidden", "false");
-    }
-    function closeModal(){
-      modal.classList.add("hidden");
-      modal.classList.remove("grid");
-      modal.setAttribute("aria-hidden", "true");
-    }
-    $("openGuide").addEventListener("click", openModal);
-    $("openGuide2").addEventListener("click", openModal);
-    $("closeModal").addEventListener("click", closeModal);
-    $("closeModal2").addEventListener("click", closeModal);
-    modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
-    window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
-
-    // Toast
     const toast = $("toast");
     const toastText = $("toastText");
     let toastTimer = null;
@@ -656,17 +770,14 @@
       }
     }
 
-    // Copy buttons
     $("copyWSS").addEventListener("click", () => copyText(SERVER.wss));
     $("copyWSSModal").addEventListener("click", () => copyText(SERVER.wss));
-
     $("copyJava").addEventListener("click", () => copyText(javaFull));
     $("copyJavaModal").addEventListener("click", () => copyText(javaFull));
-
     $("copyBedrock").addEventListener("click", () => copyText(bedrockFull));
     $("copyBedrockModal").addEventListener("click", () => copyText(bedrockFull));
+    $("copyWSSPortalModal").addEventListener("click", () => copyText(SERVER.wss));
 
-    // Copy all addresses (short)
     $("copyAllThree").addEventListener("click", () => {
       const msg =
 `${SERVER.name}
@@ -683,7 +794,6 @@ ${bedrockFull}`;
       showToast("Copied!");
     });
 
-    // Full invite
     function inviteText(){
       return `${SERVER.name} — ${SERVER.tagline}
 
@@ -703,7 +813,6 @@ Discord: ${SERVER.discord}`;
     $("copyInvite").addEventListener("click", () => { copyText(inviteText()); showToast("Invite copied!"); });
     $("copyEverythingModal").addEventListener("click", () => { copyText(inviteText()); showToast("Invite copied!"); });
 
-    // Status ping
     async function checkStatus(){
       const dot = $("statusDot");
       const text = $("statusText");
@@ -720,13 +829,72 @@ Discord: ${SERVER.discord}`;
     checkStatus();
     setInterval(checkStatus, 15000);
 
-    // Effects toggle
     let fxOn = true;
     $("effectsToggle").addEventListener("click", () => {
       fxOn = !fxOn;
       $("ambient").style.display = fxOn ? "" : "none";
       showToast(fxOn ? "Effects on" : "Effects off");
     });
+
+    // Connection Guide modal
+    const modal = $("modal");
+    function openModal(){
+      modal.classList.remove("hidden");
+      modal.classList.add("grid");
+      modal.setAttribute("aria-hidden", "false");
+    }
+    function closeModal(){
+      modal.classList.add("hidden");
+      modal.classList.remove("grid");
+      modal.setAttribute("aria-hidden", "true");
+    }
+    $("openGuide").addEventListener("click", openModal);
+    $("openGuide2").addEventListener("click", openModal);
+    $("closeModal").addEventListener("click", closeModal);
+    $("closeModal2").addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+
+    // Portal modal (opened by the Eagler Launch button)
+    const portalModal = $("portalModal");
+    function openPortalModal(){
+      portalModal.classList.remove("hidden");
+      portalModal.classList.add("grid");
+      portalModal.setAttribute("aria-hidden", "false");
+      showToast("Portal ready");
+    }
+    function closePortalModal(){
+      portalModal.classList.add("hidden");
+      portalModal.classList.remove("grid");
+      portalModal.setAttribute("aria-hidden", "true");
+    }
+
+    // THIS is the change you asked for
+    $("openSite").addEventListener("click", openPortalModal);
+
+    $("closePortalModal").addEventListener("click", closePortalModal);
+    $("closePortalModal2").addEventListener("click", closePortalModal);
+    portalModal.addEventListener("click", (e) => { if (e.target === portalModal) closePortalModal(); });
+
+    $("openGuideFromPortalModal").addEventListener("click", () => {
+      closePortalModal();
+      openModal();
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { closeModal(); closePortalModal(); }
+    });
+
+    // Mouse spotlight (desktop only-ish)
+    let raf = null;
+    window.addEventListener("mousemove", (e) => {
+      if (!fxOn) return;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        document.documentElement.style.setProperty("--mx", e.clientX + "px");
+        document.documentElement.style.setProperty("--my", e.clientY + "px");
+      });
+    }, { passive: true });
   </script>
 </body>
 </html>
