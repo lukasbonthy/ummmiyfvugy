@@ -1,113 +1,59 @@
-/* public/styles.css */
+/* public/styles-extra.css */
 
-/* Softer, more “premium” motion + glass polish */
+/* Slightly more premium without changing your layout */
 :root{
-  --glass: rgba(255,255,255,.06);
-  --stroke: rgba(255,255,255,.12);
-  --stroke2: rgba(255,255,255,.18);
-  --blur: 14px;
-  --mx: 50vw;
-  --my: 40vh;
+  --gold: #FFD54A;
 }
 
-.glass{
-  background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.04));
-  border: 1px solid var(--stroke);
-  backdrop-filter: blur(var(--blur));
-  box-shadow: 0 0 0 1px rgba(0,0,0,.18) inset;
-}
-.glass-strong{
-  background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.05));
-  border: 1px solid var(--stroke2);
-  backdrop-filter: blur(calc(var(--blur) + 2px));
-  box-shadow: 0 0 0 1px rgba(0,0,0,.20) inset;
+/* Let your existing glass pop more */
+.glass, .glass-strong{
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.06) inset,
+    0 18px 70px rgba(0,0,0,.38);
 }
 
-.grad-border{ position:relative; border-radius:24px; overflow:hidden; }
-.grad-border::before{
-  content:"";
-  position:absolute; inset:0; padding:1px; border-radius:24px;
-  background: linear-gradient(135deg,
-    rgba(255,255,255,.22),
-    rgba(255,213,74,.20),
-    rgba(96,165,250,.18),
-    rgba(255,255,255,.14)
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events:none;
+/* Better lift */
+.liftCard:hover{
+  transform: translateY(-4px);
 }
 
-.focus-ring:focus-visible{
-  outline: 3px solid rgba(255, 213, 74, .55);
-  outline-offset: 3px;
-  border-radius: 16px;
-}
-
-.btn{
+/* Music pill + volume popover */
+.music-pill{
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .6rem .8rem;
+  border-radius: 999px;
   border: 1px solid rgba(255,255,255,.14);
   background: rgba(255,255,255,.06);
+  backdrop-filter: blur(12px);
   transition: transform .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
 }
-.btn:hover{
+.music-pill:hover{
   transform: translateY(-2px);
   background: rgba(255,255,255,.09);
   border-color: rgba(255,255,255,.18);
   box-shadow: 0 18px 34px rgba(0,0,0,.34);
 }
-.btn2{
-  border: 1px solid rgba(255,213,74,.28);
-  background: rgba(255,213,74,.10);
-  transition: transform .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
-}
-.btn2:hover{
-  transform: translateY(-2px);
-  background: rgba(255,213,74,.14);
-  border-color: rgba(255,213,74,.36);
-  box-shadow: 0 18px 34px rgba(0,0,0,.34);
-}
-.chip{ border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); }
-.mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-
-/* Background effects */
-.tinygrid{
-  background-image:
-    linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px);
-  background-size: 36px 36px;
-  mask-image: radial-gradient(ellipse at center, black 40%, transparent 78%);
-  opacity: .18;
-}
-.noise{
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.28'/%3E%3C/svg%3E");
-  opacity: .10;
-  mix-blend-mode: overlay;
-}
-.spotlight{
-  background: radial-gradient(600px 420px at var(--mx) var(--my),
-    rgba(255,213,74,.14),
-    rgba(96,165,250,.10) 40%,
-    transparent 70%);
-  opacity: .85;
+.music-pill[aria-pressed="true"]{
+  border-color: rgba(255,213,74,.42);
+  box-shadow: 0 0 35px rgba(255,213,74,.18);
 }
 
-.sheen{ position: relative; overflow: hidden; }
-.sheen::after{
-  content:"";
-  position:absolute; top:-60%; left:-40%;
-  width: 45%; height: 220%;
-  transform: rotate(18deg);
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
-  opacity:0;
-  transition: opacity .25s ease, transform .60s ease;
-  pointer-events:none;
+.volume-pop{
+  position: absolute;
+  right: 0;
+  margin-top: .6rem;
+  width: 16rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(0,0,0,.38);
+  backdrop-filter: blur(14px);
+  padding: .85rem;
+  box-shadow: 0 24px 70px rgba(0,0,0,.55);
+  z-index: 60;
 }
-.sheen:hover::after{ opacity:1; transform: translateX(240%) rotate(18deg); }
-
-.liftCard{ transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; transform: translateZ(0); }
-.liftCard:hover{ transform: translateY(-3px); border-color: rgba(255,255,255,.18); box-shadow: 0 22px 44px rgba(0,0,0,.42); }
-
-@media (prefers-reduced-motion: reduce){
-  .animate-floaty, .animate-shimmer, .animate-pulseSoft, .sheen::after { animation:none !important; transition:none !important; }
+.volume-pop input[type="range"]{
+  width: 100%;
+  accent-color: var(--gold);
 }
